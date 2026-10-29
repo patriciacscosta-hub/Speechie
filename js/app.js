@@ -1,0 +1,817 @@
+import * as store from './store.js';
+import { speak, stopSpeaking, britishVoices, onVoicesChanged, recorder, sfx, unlockAudio } from './audio.js';
+import { SKILLS, ACTIVITIES, AVATARS, STICKERS, PRAISE, makeRound, sentence, pick, shuffle } from './content.js';
+import { pip, icon } from './art.js';
+
+const app = document.getElementById('app');
+const fx = document.getElementById('fx');
+const $ = (sel, root = app) => root.querySelector(sel);
+const $$ = (sel, root = app) => [...root.querySelectorAll(sel)];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// --- Screen plumbing ---
+
+let teardown = null;
+function mount(html, setup) {
+  teardown?.();
+  teardown = null;
+  stopSpeaking();
+  app.innerHTML = html;
+  window.scrollTo(0, 0);
+  teardown = setup?.() || null;
+}
+
+function toast(message) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = message;
+  fx.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const colours = ['#FF7A59', '#FFC43D', '#22B5A0', '#8F7CFF', '#4AA8FF', '#FF8FB8'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('i');
+    p.className = 'confetti';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.background = pick(colours);
+    p.style.animationDelay = Math.random() * 0.5 + 's';
+    p.style.animationDuration = 1.8 + Math.random() * 1.4 + 's';
+    p.style.setProperty('--spin', (Math.random() * 720 - 360).toFixed(0) + 'deg');
+    p.style.setProperty('--drift', (Math.random() * 30 - 15).toFixed(1) + 'vw');
+    fx.appendChild(p);
+    setTimeout(() => p.remove(), 4000);
+  }
+}
+
+function shake(el) {
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+}
+
+// --- Start ---
+
+function splash() {
+  mount(
+    `<section class="screen splash">
+      <button class="splash-btn" id="start" aria-label="Start Speechie">
+        <span class="pip-big bob">${pip('happy')}</span>
+        <span class="logo">Speechie</span>
+        <span class="tap-hint">Tap to start</span>
+      </button>
+    </section>`,
+    () => {
+      $('#start').addEventListener('click', () => {
+        unlockAudio();
+        sfx.tap();
+        store.get().child ? home(true) : setup();
+      });
+    },
+  );
+}
+
+function setup() {
+  const s = store.get();
+  let avatar = s.child?.avatar || AVATARS[0];
+  mount(
+    `<section class="screen setup">
+      <form class="card setup-card" id="form" novalidate>
+        <span class="pip-mid">${pip('wow')}</span>
+        <h1>Hello, grown-up!</h1>
+        <p class="lead">Speechie helps your child practise <b>he</b>, <b>she</b> and <b>they</b>, and the words that go with them, like <b>she has</b> and <b>they have</b>.</p>
+        <label class="field">
+          <span>Your child’s name</span>
+          <input id="name" maxlength="20" autocomplete="off" autocapitalize="words" placeholder="e.g. Sam" value="${esc(s.child?.name || '')}">
+        </label>
+        <fieldset class="field">
+          <legend>Pick a buddy</legend>
+          <div class="avatar-grid">${AVATARS.map((a) => `<button type="button" class="avatar-opt ${a === avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === avatar}">${a}</button>`).join('')}</div>
+        </fieldset>
+        <button class="btn btn-primary btn-big" type="submit">Let’s play ${icon('arrow')}</button>
+        <p class="fine">Everything stays on this device. Little and often works best: 5–10 minutes most days.</p>
+      </form>
+    </section>`,
+    () => {
+      $$('.avatar-opt').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.tap();
+          avatar = b.dataset.a;
+          $$('.avatar-opt').forEach((o) => {
+            o.classList.toggle('on', o === b);
+            o.setAttribute('aria-pressed', o === b);
+          });
+        }),
+      );
+      $('#form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = $('#name').value.trim();
+        if (!name) {
+          shake($('#name'));
+          $('#name').focus();
+          return;
+        }
+        store.update((st) => (st.child = { name, avatar }));
+        home(true);
+      });
+    },
+  );
+}
+
+// --- Child home ---
+
+function home(greet = false) {
+  const s = store.get();
+  const c = s.child;
+  const hello = `Hi ${c.name}! What shall we play?`;
+  mount(
+    `<section class="screen home">
+      <header class="topbar">
+        <div class="hello"><span class="hello-avatar">${c.avatar}</span><span class="hello-text"><small>Hello</small>${esc(c.name)}!</span></div>
+        <div class="top-actions">
+          <button class="chip" id="stickers" aria-label="My stickers">${icon('star')}<span>${s.stickers.length}</span></button>
+          <button class="lock" id="lock" aria-label="Grown-ups: press and hold">
+            <svg class="lock-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/></svg>${icon('lock')}
+          </button>
+        </div>
+      </header>
+      <div class="home-hero">
+        <button class="pip-btn bob" id="pip" aria-label="Hear Pip">${pip('happy')}</button>
+        <div class="bubble">What shall we play?</div>
+      </div>
+      <div class="tiles">${ACTIVITIES.map(
+        (a) => `<button class="tile tile-${a.colour}" data-act="${a.id}">
+            <span class="tile-art">${a.art}</span><span class="tile-name">${a.name}</span>
+          </button>`,
+      ).join('')}</div>
+    </section>`,
+    () => {
+      $$('[data-act]').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.tap();
+          play(b.dataset.act);
+        }),
+      );
+      $('#stickers').addEventListener('click', () => {
+        sfx.tap();
+        stickerBook();
+      });
+      $('#pip').addEventListener('click', () => speak(hello));
+      holdToOpen($('#lock'), () => grownups());
+      if (greet) speak(hello);
+    },
+  );
+}
+
+// The grown-up area opens with a press-and-hold, so little fingers don't wander in.
+function holdToOpen(btn, open) {
+  let timer = null;
+  let opened = false;
+  const start = (e) => {
+    e.preventDefault();
+    btn.classList.add('holding');
+    timer = setTimeout(() => {
+      opened = true;
+      sfx.tap();
+      open();
+    }, 1500);
+  };
+  const cancel = () => {
+    clearTimeout(timer);
+    btn.classList.remove('holding');
+  };
+  btn.addEventListener('pointerdown', start);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, cancel));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  btn.addEventListener('click', () => {
+    if (!opened) toast('Grown-ups: press and hold the lock');
+  });
+}
+
+// --- Playing a round ---
+
+const PRON_ART = { he: '👦', she: '👧', they: '👧👦' };
+
+const sceneHTML = (item) => `
+  <div class="scene ${item.people.length > 1 ? 'many' : ''}">
+    <span class="scene-people">${item.people.map((p) => `<span>${p}</span>`).join('')}</span>
+    <span class="scene-thing">${item.thing}</span>
+  </div>`;
+
+function sentenceHTML(item, { gap = false } = {}) {
+  const verb = gap ? '<span class="w doing gap" data-gap>?</span>' : `<span class="w doing">${item.verb}</span>`;
+  const mid = item.mid ? ` <span class="w doing">${item.mid}</span>` : '';
+  return `<p class="sentence"><span class="w who">${item.who}</span> ${verb}${mid} <span class="w what">${item.rest}</span></p>`;
+}
+
+const record = (activity, item, extra) => store.logAttempt({ activity, skill: item.skill, pron: item.pron, ...extra });
+
+function showNext(stage, go) {
+  const slot = $('.next-slot', stage);
+  slot.innerHTML = `<button class="next-btn" aria-label="Next">${icon('arrow')}</button>`;
+  slot.firstChild.addEventListener('click', () => {
+    sfx.tap();
+    go();
+  });
+}
+
+function play(activityId) {
+  const activity = ACTIVITIES.find((a) => a.id === activityId);
+  const items = makeRound(activityId, store.get().skills);
+  const render = { who: playWho, word: playWord, build: playBuild, say: playSay }[activityId];
+  let index = 0;
+  let roundStars = 0;
+
+  mount(
+    `<section class="screen play play-${activityId}">
+      <header class="playbar">
+        <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
+        <div class="dots" aria-label="Progress">${items.map(() => '<span class="dot"></span>').join('')}</div>
+        <button class="round-btn" id="replay" aria-label="Hear it again">${icon('speaker')}</button>
+      </header>
+      <div class="stage" id="stage"></div>
+    </section>`,
+    () => {
+      let itemTeardown = null;
+      let replay = () => {};
+      $('#home').addEventListener('click', () => {
+        sfx.tap();
+        home();
+      });
+      $('#replay').addEventListener('click', () => replay());
+
+      const next = (firstTry) => {
+        if (firstTry) {
+          roundStars++;
+          store.update((s) => s.stars++);
+        }
+        $$('.dot')[index].classList.add(firstTry ? 'star' : 'done');
+        index++;
+        if (index >= items.length) celebrate(activityId, roundStars, items.length);
+        else show();
+      };
+
+      const show = () => {
+        itemTeardown?.();
+        $$('.dot').forEach((d, k) => d.classList.toggle('now', k === index));
+        const stage = $('#stage');
+        stage.classList.remove('enter');
+        void stage.offsetWidth;
+        stage.classList.add('enter');
+        itemTeardown = render(stage, items[index], {
+          intro: index === 0 ? activity.intro + ' ' : '',
+          setReplay: (fn) => (replay = fn),
+          next,
+        });
+      };
+      show();
+      return () => {
+        itemTeardown?.();
+        recorder.release();
+      };
+    },
+  );
+}
+
+// Who is it? — choose he / she / they from the picture.
+function playWho(stage, item, ctx) {
+  const question = `Who is ${item.mid} ${item.rest}?`;
+  stage.innerHTML = `${sceneHTML(item)}
+    <div class="prompt"><p class="question">${question}</p></div>
+    <div class="choices">${item.choices
+      .map((p) => `<button class="choice pron" data-p="${p}"><span class="choice-art">${PRON_ART[p]}</span><span class="choice-word">${cap(p)}</span></button>`)
+      .join('')}</div>
+    <div class="next-slot"></div>`;
+  ctx.setReplay(() => speak(question));
+  speak(ctx.intro + question);
+
+  let tries = 0;
+  let done = false;
+  $$('.choice', stage).forEach((b) =>
+    b.addEventListener('click', () => {
+      if (done || b.classList.contains('tried')) return;
+      if (b.dataset.p === item.pron) {
+        done = true;
+        const first = tries === 0;
+        const line = sentence(item);
+        b.classList.add('right');
+        $$('.choice', stage).forEach((o) => o !== b && o.classList.add('faded'));
+        $('.prompt', stage).innerHTML = sentenceHTML(item);
+        sfx.good();
+        ctx.setReplay(() => speak(line));
+        speak(first ? `${pick(PRAISE)} ${line}` : line);
+        record('who', item, { ok: first });
+        showNext(stage, () => ctx.next(first));
+      } else {
+        tries++;
+        sfx.oops();
+        b.classList.add('tried');
+        shake(b);
+        if (tries === 1) speak('Have another look.');
+        else {
+          $(`.choice[data-p="${item.pron}"]`, stage).classList.add('hint');
+          speak(`Try ${item.pron}.`);
+        }
+      }
+    }),
+  );
+}
+
+// Pick the word — has or have, is or are… If it's wrong, we model it the right way.
+function playWord(stage, item, ctx) {
+  const options = shuffle([item.verb, item.wrong]);
+  const ask = `Which word fits? ${options[0]}, or ${options[1]}?`;
+  stage.innerHTML = `${sceneHTML(item)}
+    <div class="prompt">${sentenceHTML(item, { gap: true })}</div>
+    <div class="choices">${options.map((v) => `<button class="choice word" data-v="${v}"><span class="choice-word">${v}</span></button>`).join('')}</div>
+    <div class="next-slot"></div>`;
+  ctx.setReplay(() => speak(ask));
+  speak(ctx.intro + ask);
+
+  let done = false;
+  $$('.choice', stage).forEach((b) =>
+    b.addEventListener('click', () => {
+      if (done) return;
+      done = true;
+      const ok = b.dataset.v === item.verb;
+      const line = sentence(item);
+      const gap = $('[data-gap]', stage);
+      gap.textContent = item.verb;
+      gap.classList.add(ok ? 'filled' : 'fixed');
+      if (ok) {
+        b.classList.add('right');
+        sfx.good();
+        speak(`${pick(PRAISE)} ${line}`);
+      } else {
+        b.classList.add('wrong');
+        shake(b);
+        $(`.choice[data-v="${item.verb}"]`, stage).classList.add('hint');
+        sfx.oops();
+        speak(`Nearly! We say: ${line}`);
+      }
+      ctx.setReplay(() => speak(line));
+      record('word', item, { ok });
+      showNext(stage, () => ctx.next(ok));
+    }),
+  );
+}
+
+// Build it — tap colour-coded word tiles into Who / Doing / What.
+function playBuild(stage, item, ctx) {
+  const ORDER = ['who', 'doing', 'what'];
+  const LABEL = { who: 'Who', doing: 'Doing', what: 'What' };
+  const doing = (v) => [v, item.mid].filter(Boolean).join(' ');
+  const tiles = shuffle([
+    { role: 'who', text: item.who, ok: true },
+    { role: 'who', text: item.otherWho, ok: false },
+    { role: 'doing', text: doing(item.verb), ok: true },
+    { role: 'doing', text: doing(item.wrong), ok: false },
+    { role: 'what', text: item.rest, ok: true },
+  ]);
+  stage.innerHTML = `${sceneHTML(item)}
+    <div class="slots">${ORDER.map(
+      (r, k) => `<div class="slot slot-${r} ${k === 0 ? 'active' : ''}" data-role="${r}"><span class="slot-label">${LABEL[r]}</span><span class="slot-fill"></span></div>`,
+    ).join('')}</div>
+    <div class="tray">${tiles.map((t, k) => `<button class="word-tile w-${t.role}" data-k="${k}">${t.text}</button>`).join('')}</div>
+    <div class="next-slot"></div>`;
+  const line = sentence(item);
+  ctx.setReplay(() => speak(pos < ORDER.length ? 'Tap the words to build the sentence.' : line));
+  speak(ctx.intro || 'Start with who.');
+
+  let pos = 0;
+  let mistakes = 0;
+  let slotMistakes = 0;
+  const slots = $$('.slot', stage);
+  $$('.word-tile', stage).forEach((b) =>
+    b.addEventListener('click', () => {
+      if (pos >= ORDER.length) return;
+      const t = tiles[b.dataset.k];
+      if (t.role === ORDER[pos] && t.ok) {
+        const slot = slots[pos];
+        $('.slot-fill', slot).textContent = t.text;
+        slot.classList.remove('active');
+        slot.classList.add('filled');
+        b.classList.add('used');
+        b.disabled = true;
+        $$('.word-tile.hint', stage).forEach((h) => h.classList.remove('hint'));
+        slotMistakes = 0;
+        pos++;
+        if (pos < ORDER.length) {
+          sfx.tap();
+          slots[pos].classList.add('active');
+          speak(t.text);
+        } else {
+          const ok = mistakes === 0;
+          $$('.word-tile:not(.used)', stage).forEach((o) => o.classList.add('faded'));
+          stage.querySelector('.slots').classList.add('complete');
+          sfx.good();
+          speak(`${ok ? pick(PRAISE) + ' ' : ''}${line}`);
+          record('build', item, { ok });
+          showNext(stage, () => ctx.next(ok));
+        }
+      } else {
+        mistakes++;
+        slotMistakes++;
+        sfx.oops();
+        shake(b);
+        if (t.role !== ORDER[pos]) shake(slots[pos]);
+        if (slotMistakes >= 2) {
+          const k = tiles.findIndex((x) => x.role === ORDER[pos] && x.ok);
+          $(`.word-tile[data-k="${k}"]`, stage).classList.add('hint');
+        }
+      }
+    }),
+  );
+}
+
+// Say it — hear the model, record a try, play it back, grown-up gives a rating.
+function playSay(stage, item, ctx) {
+  const line = sentence(item);
+  const canRecord = recorder.supported;
+  stage.innerHTML = `${sceneHTML(item)}
+    <div class="prompt">${sentenceHTML(item)}</div>
+    <div class="say-row">
+      <button class="say-btn listen" id="listen">${icon('speaker')}<span>Listen</span></button>
+      ${canRecord ? `<button class="say-btn rec" id="rec">${icon('mic')}<span>Say it</span></button>
+      <button class="say-btn mine" id="mine" disabled>${icon('play')}<span>Hear me</span></button>` : ''}
+    </div>
+    ${canRecord ? '' : '<p class="note">Say it out loud together, then a grown-up taps below.</p>'}
+    <div class="judge">
+      <p class="judge-title">${icon('lock')} Grown-up: how did it sound?</p>
+      <div class="judge-row">
+        <button class="judge-btn got" data-r="got">${icon('check')} Got it</button>
+        <button class="judge-btn nearly" data-r="nearly">Nearly</button>
+        <button class="judge-btn again" data-r="again">${icon('again')} Try again</button>
+      </div>
+    </div>`;
+  const model = () => speak(line, { rate: store.get().settings.rate * 0.95 });
+  ctx.setReplay(model);
+  speak(ctx.intro + line);
+
+  $('#listen', stage).addEventListener('click', () => {
+    sfx.tap();
+    model();
+  });
+
+  let recording = false;
+  let clip = null;
+  let autoStop = null;
+  let player = null;
+  const recBtn = $('#rec', stage);
+  const mineBtn = $('#mine', stage);
+
+  const playClip = () => {
+    if (!clip) return;
+    player?.pause();
+    player = new Audio(clip);
+    mineBtn.classList.add('on');
+    player.onended = () => mineBtn.classList.remove('on');
+    player.play().catch(() => mineBtn.classList.remove('on'));
+  };
+
+  const stopRec = async () => {
+    clearTimeout(autoStop);
+    if (!recording) return;
+    recording = false;
+    recBtn.classList.remove('on');
+    recBtn.innerHTML = `${icon('mic')}<span>Say it</span>`;
+    clip = await recorder.stop();
+    mineBtn.disabled = !clip;
+    playClip();
+  };
+
+  recBtn?.addEventListener('click', async () => {
+    if (recording) return stopRec();
+    stopSpeaking();
+    try {
+      await recorder.start();
+    } catch {
+      toast('Speechie can’t use the microphone. On iPad: Settings › Apps › Safari › Microphone.');
+      return;
+    }
+    recording = true;
+    recBtn.classList.add('on');
+    recBtn.innerHTML = `${icon('stop')}<span>Stop</span>`;
+    autoStop = setTimeout(stopRec, 7000);
+  });
+  mineBtn?.addEventListener('click', playClip);
+
+  $$('.judge-btn', stage).forEach((b) =>
+    b.addEventListener('click', async () => {
+      await stopRec();
+      const rating = b.dataset.r;
+      record('say', item, { rating });
+      if (rating === 'again') {
+        clip = null;
+        if (mineBtn) mineBtn.disabled = true;
+        speak(`Let's try again. Listen. ${line}`);
+        return;
+      }
+      if (rating === 'got') sfx.good();
+      else sfx.tap();
+      ctx.next(rating === 'got');
+    }),
+  );
+
+  return () => {
+    clearTimeout(autoStop);
+    player?.pause();
+    recorder.release();
+  };
+}
+
+// --- End of round ---
+
+function celebrate(activityId, roundStars, total) {
+  const s = store.get();
+  const missing = STICKERS.filter((x) => !s.stickers.includes(x));
+  const sticker = missing.length ? pick(missing) : pick(STICKERS);
+  const isNew = missing.length > 0;
+  store.update((st) => {
+    if (isNew) st.stickers.push(sticker);
+    st.rounds++;
+  });
+  const name = s.child.name;
+  const message = isNew ? 'You won a new sticker!' : 'You’ve collected every sticker!';
+  mount(
+    `<section class="screen celebrate">
+      <div class="sticker-reveal"><span class="sticker-big">${sticker}</span></div>
+      <h1>Brilliant, ${esc(name)}!</h1>
+      <p class="lead">${message}</p>
+      <div class="round-stars" aria-label="${roundStars} stars">${Array.from({ length: total }, (_, k) => `<span class="${k < roundStars ? 'lit' : ''}">${icon('star')}</span>`).join('')}</div>
+      <div class="row">
+        <button class="btn btn-primary btn-big" id="again">${icon('again')} Play again</button>
+        <button class="btn btn-big" id="home">${icon('home')} Home</button>
+      </div>
+    </section>`,
+    () => {
+      sfx.win();
+      confetti();
+      speak(`Brilliant, ${name}! ${message}`);
+      $('#again').addEventListener('click', () => {
+        sfx.tap();
+        play(activityId);
+      });
+      $('#home').addEventListener('click', () => {
+        sfx.tap();
+        home();
+      });
+    },
+  );
+}
+
+function stickerBook() {
+  const s = store.get();
+  mount(
+    `<section class="screen stickers">
+      <header class="playbar">
+        <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
+        <h1 class="bar-title">My stickers</h1>
+        <span class="chip static">${icon('star')}<span>${s.stickers.length}/${STICKERS.length}</span></span>
+      </header>
+      <div class="sticker-grid">${STICKERS.map((x) =>
+        s.stickers.includes(x) ? `<button class="sticker" aria-label="Sticker">${x}</button>` : '<span class="sticker empty">?</span>',
+      ).join('')}</div>
+    </section>`,
+    () => {
+      $('#home').addEventListener('click', () => {
+        sfx.tap();
+        home();
+      });
+      $$('.sticker:not(.empty)').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.good();
+          shake(b);
+        }),
+      );
+      const n = s.stickers.length;
+      speak(n ? `You have ${n} sticker${n === 1 ? '' : 's'}!` : 'Play a game to win your first sticker!');
+    },
+  );
+}
+
+// --- Grown-ups area ---
+
+const TABS = [
+  ['progress', 'Progress'],
+  ['skills', 'Skills'],
+  ['settings', 'Settings'],
+  ['tips', 'Tips'],
+];
+
+function grownups(tab = 'progress') {
+  const s = store.get();
+  mount(
+    `<section class="screen grown">
+      <header class="grown-head">
+        <div><p class="eyebrow">Grown-ups</p><h1>${esc(s.child.name)}’s practice</h1></div>
+        <button class="btn" id="back">${icon('back')} Back to games</button>
+      </header>
+      <nav class="tabs" role="tablist">${TABS.map(
+        ([id, label]) => `<button role="tab" class="tab ${id === tab ? 'on' : ''}" data-tab="${id}" aria-selected="${id === tab}">${label}</button>`,
+      ).join('')}</nav>
+      <div class="grown-body" id="body"></div>
+    </section>`,
+    () => {
+      $('#back').addEventListener('click', () => home());
+      $$('.tab').forEach((t) => t.addEventListener('click', () => grownups(t.dataset.tab)));
+      return { progress: progressTab, skills: skillsTab, settings: settingsTab, tips: tipsTab }[tab]($('#body'));
+    },
+  );
+}
+
+const DAY = 864e5;
+const dayKey = (t) => new Date(t).toDateString();
+
+function skillStats(log, skillId) {
+  const tries = log.filter((e) => e.skill === skillId && e.activity !== 'say');
+  const recent = tries.slice(-20);
+  const accuracy = recent.length ? Math.round((100 * recent.filter((e) => e.ok).length) / recent.length) : null;
+  const byDay = new Map();
+  for (const e of tries) {
+    const k = dayKey(e.t);
+    const d = byDay.get(k) || { t: e.t, n: 0, ok: 0 };
+    d.n++;
+    if (e.ok) d.ok++;
+    byDay.set(k, d);
+  }
+  const days = [...byDay.values()].slice(-7);
+  const says = log.filter((e) => e.skill === skillId && e.activity === 'say');
+  const count = (r) => says.filter((e) => e.rating === r).length;
+  return { total: tries.length, recentCount: recent.length, accuracy, days, said: { got: count('got'), nearly: count('nearly'), again: count('again') } };
+}
+
+function progressTab(body) {
+  const s = store.get();
+  const week = s.log.filter((e) => e.t >= Date.now() - 7 * DAY);
+  const daysThisWeek = new Set(week.map((e) => dayKey(e.t))).size;
+
+  if (!s.log.length) {
+    body.innerHTML = `<div class="card empty-state">
+      <span class="pip-mid">${pip('calm')}</span>
+      <h2>No practice yet</h2>
+      <p class="muted">Hand the iPad to ${esc(s.child.name)} and pick a game together. Progress will appear here.</p>
+    </div>`;
+    return;
+  }
+
+  const cards = SKILLS.map((sk) => ({ sk, st: skillStats(s.log, sk.id) }))
+    .filter(({ sk, st }) => s.skills[sk.id] || st.total || st.said.got + st.said.nearly)
+    .map(({ sk, st }) => {
+      const confident = st.accuracy >= 80 && st.recentCount >= 15;
+      const learning = st.accuracy !== null && st.accuracy < 50 && st.recentCount >= 10;
+      const sayTotal = st.said.got + st.said.nearly + st.said.again;
+      return `<article class="card skill-card">
+        <header><h3>${sk.name}</h3><span class="tag ${s.skills[sk.id] ? 'on' : ''}">${s.skills[sk.id] ? 'On' : 'Off'}</span></header>
+        <p class="muted">${sk.example}</p>
+        ${
+          st.accuracy === null
+            ? '<p class="muted small">No tapping games yet.</p>'
+            : `<div class="meter"><div class="meter-fill ${confident ? 'great' : learning ? 'low' : ''}" style="width:${st.accuracy}%"></div></div>
+               <p><b class="big-num">${st.accuracy}%</b> right first time <span class="muted small">(last ${st.recentCount} of ${st.total})</span></p>
+               <div class="bars" aria-hidden="true">${st.days
+                 .map((d) => `<span class="bar"><i style="height:${Math.max(6, Math.round((100 * d.ok) / d.n))}%"></i><small>${new Date(d.t).toLocaleDateString('en-GB', { weekday: 'short' })}</small></span>`)
+                 .join('')}</div>`
+        }
+        ${sayTotal ? `<p class="small">Say it: <b>${st.said.got}</b> got it · <b>${st.said.nearly}</b> nearly · <b>${st.said.again}</b> try again</p>` : ''}
+        ${confident ? '<p class="badge good">Looking confident!</p>' : ''}
+        ${learning ? '<p class="badge">Still learning: keep modelling it in everyday chat.</p>' : ''}
+      </article>`;
+    })
+    .join('');
+
+  const ready = SKILLS.filter((sk) => s.skills[sk.id]).every((sk) => {
+    const st = skillStats(s.log, sk.id);
+    return st.accuracy >= 80 && st.recentCount >= 15;
+  });
+  const nextSkill = SKILLS.find((sk) => !s.skills[sk.id]);
+
+  body.innerHTML = `
+    <div class="summary">
+      <div class="card stat"><b>${week.length}</b><span>tries this week</span></div>
+      <div class="card stat"><b>${daysThisWeek}<small>/7</small></b><span>days practised</span></div>
+      <div class="card stat"><b>${s.stickers.length}<small>/${STICKERS.length}</small></b><span>stickers</span></div>
+    </div>
+    ${ready && nextSkill ? `<div class="card suggest">${icon('star')}<p><b>Ready for more?</b> ${esc(s.child.name)} is doing well. Try switching on <b>${nextSkill.name}</b> in Skills.</p></div>` : ''}
+    <div class="skill-grid">${cards}</div>`;
+}
+
+function skillsTab(body) {
+  const s = store.get();
+  const row = (sk) => `<label class="toggle-row">
+      <span><b>${sk.name}</b><small>${sk.example}</small></span>
+      <input type="checkbox" class="switch" data-skill="${sk.id}" ${s.skills[sk.id] ? 'checked' : ''}>
+    </label>`;
+  body.innerHTML = `
+    <div class="card">
+      <h2>Who is it?</h2>
+      <p class="muted">Choosing the right word for the person in the picture.</p>
+      <div class="toggle-list">${SKILLS.filter((x) => x.group === 'who').map(row).join('')}</div>
+    </div>
+    <div class="card">
+      <h2>Matching words</h2>
+      <p class="muted">Used in Pick the word, Build it and Say it. Start with one or two, then add more as your child grows in confidence.</p>
+      <div class="toggle-list">${SKILLS.filter((x) => x.group === 'verb').map(row).join('')}</div>
+    </div>`;
+  $$('.switch', body).forEach((sw) =>
+    sw.addEventListener('change', () => store.update((st) => (st.skills[sw.dataset.skill] = sw.checked))),
+  );
+}
+
+function settingsTab(body) {
+  const draw = () => {
+    const s = store.get();
+    const voices = britishVoices();
+    body.innerHTML = `
+      <div class="card">
+        <h2>Your child</h2>
+        <label class="field"><span>Name</span><input id="name" maxlength="20" autocomplete="off" value="${esc(s.child.name)}"></label>
+        <fieldset class="field"><legend>Buddy</legend><div class="avatar-grid">${AVATARS.map(
+          (a) => `<button type="button" class="avatar-opt ${a === s.child.avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === s.child.avatar}">${a}</button>`,
+        ).join('')}</div></fieldset>
+      </div>
+      <div class="card">
+        <h2>Voice</h2>
+        ${
+          voices.length
+            ? `<label class="field"><span>British English voice</span><select id="voice"><option value="">Automatic</option>${voices
+                .map((v) => `<option value="${esc(v.voiceURI)}" ${v.voiceURI === s.settings.voiceURI ? 'selected' : ''}>${esc(v.name)}</option>`)
+                .join('')}</select></label>
+               <p class="muted small">Tip: on iPad, Settings › Accessibility › Spoken Content › Voices › English (UK) lets you download clearer “Enhanced” voices.</p>`
+            : '<p class="muted">No British English voice was found on this device, so the default voice is used.</p>'
+        }
+        <label class="field"><span>Speaking speed</span>
+          <input type="range" id="rate" min="0.6" max="1.05" step="0.05" value="${s.settings.rate}">
+          <span class="range-labels"><small>Slower</small><small>Normal</small></span>
+        </label>
+        <button class="btn" id="test">${icon('speaker')} Test the voice</button>
+      </div>
+      <div class="card">
+        <h2>Sounds</h2>
+        <label class="toggle-row"><span><b>Sound effects</b><small>Chimes for right answers and celebrations</small></span>
+          <input type="checkbox" class="switch" id="sfx" ${s.settings.sfx ? 'checked' : ''}></label>
+      </div>
+      <div class="card">
+        <h2>Use it like an app</h2>
+        <p class="muted">On iPad, open Speechie in Safari, tap the Share button, then <b>Add to Home Screen</b>. It opens full screen and works offline.</p>
+      </div>
+      <div class="card danger">
+        <h2>Start fresh</h2>
+        <p class="muted">Clears progress, stars and stickers. Name, skills and settings are kept.</p>
+        <button class="btn btn-danger" id="reset">Reset progress</button>
+      </div>`;
+
+    $('#name', body).addEventListener('change', (e) => {
+      const name = e.target.value.trim();
+      if (name) store.update((st) => (st.child.name = name));
+    });
+    $$('.avatar-opt', body).forEach((b) =>
+      b.addEventListener('click', () => {
+        store.update((st) => (st.child.avatar = b.dataset.a));
+        $$('.avatar-opt', body).forEach((o) => {
+          o.classList.toggle('on', o === b);
+          o.setAttribute('aria-pressed', o === b);
+        });
+      }),
+    );
+    $('#voice', body)?.addEventListener('change', (e) => store.update((st) => (st.settings.voiceURI = e.target.value)));
+    $('#rate', body).addEventListener('change', (e) => store.update((st) => (st.settings.rate = Number(e.target.value))));
+    $('#test', body).addEventListener('click', () => speak(`She has a cat. They have a dog.`));
+    $('#sfx', body).addEventListener('change', (e) => store.update((st) => (st.settings.sfx = e.target.checked)));
+    $('#reset', body).addEventListener('click', () => {
+      if (confirm('Reset all progress, stars and stickers? This can’t be undone.')) {
+        store.resetProgress();
+        toast('Progress reset');
+      }
+    });
+  };
+  draw();
+  // Voices can load a moment after the page; redraw once if they arrive.
+  return onVoicesChanged(() => {
+    if (!$('#voice', body) && britishVoices().length) draw();
+  });
+}
+
+function tipsTab(body) {
+  body.innerHTML = `
+    <div class="tips">
+      <article class="card tip"><span class="tip-num">1</span><div><h3>Little and often</h3><p>5–10 minutes on most days helps more than one long session. Stop while it’s still fun.</p></div></article>
+      <article class="card tip"><span class="tip-num">2</span><div><h3>Say it back the right way</h3><p>If your child says <i>“she have a dog”</i>, reply warmly with the right version: <i>“Yes! She <b>has</b> a dog.”</i> Stress the word a little. There’s no need to ask them to repeat it. Hearing it lots is what helps.</p></div></article>
+      <article class="card tip"><span class="tip-num">3</span><div><h3>Talk about what you see</h3><p>Out and about, describe people: <i>“Look, <b>he</b> is running. <b>They</b> are playing.”</i> Books and photos of family are great too.</p></div></article>
+      <article class="card tip"><span class="tip-num">4</span><div><h3>Use the picture clues</h3><p>One boy or man → <b>he</b>. One girl or woman → <b>she</b>. More than one person → <b>they</b>.</p></div></article>
+      <article class="card tip"><span class="tip-num">5</span><div><h3>Praise the trying</h3><p>Celebrate effort as much as right answers. Speechie never says “wrong”, and you don’t need to either.</p></div></article>
+      <article class="card tip"><span class="tip-num">6</span><div><h3>Share with the therapist</h3><p>Show your child’s speech and language therapist the Progress tab. They can tell you which skills to switch on next.</p></div></article>
+    </div>
+    <p class="muted small disclaimer">Speechie is a practice tool for home. It doesn’t replace advice from a speech and language therapist.</p>`;
+}
+
+// --- Go ---
+
+if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+splash();
