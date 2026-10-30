@@ -146,6 +146,7 @@ function setup() {
   mount(
     `<section class="screen setup">
       <form class="card setup-card" id="form" novalidate>
+        <div class="steps" aria-label="Step 1 of 2"><span class="on"></span><span></span></div>
         <span class="pip-mid">${pip('wow')}</span>
         <h1>Hello, grown-up!</h1>
         <p class="lead">Speechie helps your child practise <b>he</b>, <b>she</b> and <b>they</b>, and the words that go with them, like <b>she has</b> and <b>they have</b>.</p>
@@ -157,8 +158,8 @@ function setup() {
           <legend>Pick a buddy</legend>
           <div class="avatar-grid">${AVATARS.map((a) => `<button type="button" class="avatar-opt ${a === avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === avatar}">${a}</button>`).join('')}</div>
         </fieldset>
-        <button class="btn btn-primary btn-big" type="submit">Let’s play ${icon('arrow')}</button>
-        <p class="fine">Everything stays on this device. Little and often works best: 5–10 minutes most days.</p>
+        <button class="btn btn-primary btn-big" type="submit">Next ${icon('arrow')}</button>
+        <p class="fine">Everything stays on this device.</p>
       </form>
     </section>`,
     () => {
@@ -180,7 +181,59 @@ function setup() {
           $('#name').focus();
           return;
         }
+        setupPlan(name, avatar);
+      });
+    },
+  );
+}
+
+// Welcome, step 2: daily time and where to start. Both can be changed later in Settings.
+const FOCUS = [
+  { id: 'who', name: 'He, she and they', about: 'Choosing the right word for the person in the picture.', skills: { hs: true, they: true, isare: false, hashave: false } },
+  { id: 'both', name: 'He, she, they + matching words', about: 'Also “she has / they have” and “he is / they are”.', skills: { hs: true, they: true, isare: true, hashave: true } },
+];
+
+function setupPlan(name, avatar) {
+  let minutes = store.get().settings.minutes;
+  let focus = 'both';
+  mount(
+    `<section class="screen setup">
+      <div class="card setup-card">
+        <div class="steps" aria-label="Step 2 of 2"><span class="on"></span><span class="on"></span></div>
+        <h1>A little each day</h1>
+        <p class="lead">Short, regular practice works best. Speechie shows a timer and gently stops when time is up.</p>
+        <div class="field"><span>Play time each day</span>${seg('minutes', MINUTES.filter(([m]) => m !== 30), minutes)}</div>
+        <div class="field"><span>Start with</span>
+          <div class="focus-opts" role="radiogroup">${FOCUS.map(
+            (f) => `<button type="button" role="radio" class="focus-opt" data-f="${f.id}" aria-checked="${f.id === focus}"><b>${f.name}</b><small>${f.about}</small></button>`,
+          ).join('')}</div>
+        </div>
+        <div class="row">
+          <button class="btn btn-big" id="back">${icon('back')} Back</button>
+          <button class="btn btn-primary btn-big" id="done">Let’s play ${icon('arrow')}</button>
+        </div>
+        <p class="fine">You can change these any time: press and hold the lock on the home screen.</p>
+      </div>
+    </section>`,
+    () => {
+      onSeg(app, 'minutes', (v) => (minutes = Number(v)));
+      $$('.focus-opt').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.tap();
+          focus = b.dataset.f;
+          $$('.focus-opt').forEach((o) => o.setAttribute('aria-checked', o === b));
+        }),
+      );
+      $('#back').addEventListener('click', () => {
         store.update((st) => (st.child = { name, avatar }));
+        setup();
+      });
+      $('#done').addEventListener('click', () => {
+        store.update((st) => {
+          st.child = { name, avatar };
+          st.settings.minutes = minutes;
+          Object.assign(st.skills, FOCUS.find((f) => f.id === focus).skills);
+        });
         home(true);
       });
     },
@@ -193,7 +246,7 @@ function home(greet = false) {
   if (timer.isUp()) return timeUp();
   const s = store.get();
   const c = s.child;
-  const hello = `Hi ${c.name}! What shall we play?`;
+  const hello = `Hi ${c.name}! Ready to practise?`;
   const theme = currentTheme(s.settings.theme);
   mount(
     `<section class="screen home">
@@ -207,8 +260,12 @@ function home(greet = false) {
       </header>
       <div class="home-hero">
         <button class="pip-btn bob" id="pip" aria-label="Hear Pip">${pip('happy')}</button>
-        <div class="bubble">What shall we play?</div>
+        <div class="hero-side">
+          <div class="bubble">Ready to practise?</div>
+          <button class="btn-go" data-act="mix">${icon('play')} Let’s practise</button>
+        </div>
       </div>
+      <p class="section-label">Or choose a game</p>
       <div class="tiles">
         <button class="tile tile-theme" data-act="words" style="--t1:${theme.colours[0]};--t2:${theme.colours[1]}">
           <span class="tile-art">${theme.art}</span>
@@ -239,8 +296,9 @@ function home(greet = false) {
   );
 }
 
-// The grown-up area opens with a press-and-hold, so little fingers don't wander in.
-function holdToOpen(btn, open) {
+// Press-and-hold for things little fingers shouldn't do by accident:
+// opening the grown-up area, or leaving a game halfway through.
+function holdToOpen(btn, open, hint = 'Grown-ups: press and hold the lock') {
   let timer = null;
   let opened = false;
   const start = (e) => {
@@ -260,7 +318,7 @@ function holdToOpen(btn, open) {
   ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, cancel));
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
   btn.addEventListener('click', () => {
-    if (!opened) toast('Grown-ups: press and hold the lock');
+    if (!opened) toast(hint);
   });
 }
 
@@ -291,20 +349,65 @@ function showNext(stage, go) {
   });
 }
 
+const GAMES = { who: playWho, word: playWord, build: playBuild, say: playSay, words: playVocab };
+
+// Let's practise: a short mix of games, so children can just press one button and go.
+function makeMix(skills, theme) {
+  const tag = (play) => (it) => ({ ...it, play });
+  const [who1, who2, who3] = makeRound('who', skills).map(tag('who'));
+  const [find1, guess, find2] = makeWordRound(theme).filter((it) => it.type !== 'say').map(tag('words'));
+  // Matching words only once a grown-up has switched them on.
+  if (!SKILLS.some((sk) => sk.group === 'verb' && skills[sk.id])) return [who1, find1, who2, guess, who3, find2];
+  const [word1, word2] = makeRound('word', skills).map(tag('word'));
+  const [build] = makeRound('build', skills).map(tag('build'));
+  return [who1, word1, find1, build, word2, guess];
+}
+
+function roundFor(activityId, theme) {
+  const skills = store.get().skills;
+  if (activityId === 'mix') return { intro: 'Let’s practise!', items: makeMix(skills, theme) };
+  if (activityId === 'words') return { intro: theme.intro, items: makeWordRound(theme) };
+  return { intro: ACTIVITIES.find((a) => a.id === activityId).intro, items: makeRound(activityId, skills) };
+}
+
+// Pip sits in the play bar and reacts to answers.
+let pipReset = null;
+function react(mood) {
+  const guide = $('#guide');
+  if (!guide) return;
+  guide.innerHTML = pip(mood);
+  guide.classList.remove('jump');
+  void guide.offsetWidth;
+  if (mood === 'wow') guide.classList.add('jump');
+  clearTimeout(pipReset);
+  pipReset = setTimeout(() => $('#guide') && ($('#guide').innerHTML = pip('happy')), 1800);
+}
+const cheer = () => {
+  sfx.good();
+  react('wow');
+};
+const oops = () => {
+  sfx.oops();
+  react('calm');
+};
+
 function play(activityId) {
   if (timer.isUp()) return timeUp();
   const theme = currentTheme(store.get().settings.theme);
-  const activity = activityId === 'words' ? { intro: theme.intro } : ACTIVITIES.find((a) => a.id === activityId);
-  const items = activityId === 'words' ? makeWordRound(theme) : makeRound(activityId, store.get().skills);
-  const render = { who: playWho, word: playWord, build: playBuild, say: playSay, words: playVocab }[activityId];
+  const { intro, items } = roundFor(activityId, theme);
   let index = 0;
   let roundStars = 0;
 
   mount(
     `<section class="screen play play-${activityId}">
       <header class="playbar">
-        <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
-        <div class="dots" aria-label="Progress">${items.map(() => '<span class="dot"></span>').join('')}</div>
+        <button class="round-btn" id="home" aria-label="Leave the game: press and hold">
+          <svg class="lock-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/></svg>${icon('home')}
+        </button>
+        <div class="bar-mid">
+          <button class="guide" id="guide" aria-label="Hear it again">${pip('happy')}</button>
+          <div class="dots" aria-label="Progress">${items.map(() => '<span class="dot"></span>').join('')}</div>
+        </div>
         <div class="bar-end">${timePill()}<button class="round-btn" id="replay" aria-label="Hear it again">${icon('speaker')}</button></div>
       </header>
       <div class="stage" id="stage"></div>
@@ -312,11 +415,9 @@ function play(activityId) {
     () => {
       let itemTeardown = null;
       let replay = () => {};
-      $('#home').addEventListener('click', () => {
-        sfx.tap();
-        home();
-      });
+      holdToOpen($('#home'), () => home(), 'Hold the home button to leave the game');
       $('#replay').addEventListener('click', () => replay());
+      $('#guide').addEventListener('click', () => replay());
 
       const next = (firstTry) => {
         if (firstTry) {
@@ -337,8 +438,9 @@ function play(activityId) {
         stage.classList.remove('enter');
         void stage.offsetWidth;
         stage.classList.add('enter');
-        itemTeardown = render(stage, items[index], {
-          intro: index === 0 ? activity.intro + ' ' : '',
+        const item = items[index];
+        itemTeardown = GAMES[item.play || activityId](stage, item, {
+          intro: index === 0 ? intro + ' ' : '',
           theme,
           setReplay: (fn) => (replay = fn),
           next,
@@ -378,14 +480,14 @@ function playWho(stage, item, ctx) {
         b.classList.add('right');
         $$('.choice', stage).forEach((o) => o !== b && o.classList.add('faded'));
         $('.prompt', stage).innerHTML = sentenceHTML(item);
-        sfx.good();
+        cheer();
         ctx.setReplay(() => speak(line));
         speak(first ? `${pick(PRAISE)} ${line}` : line);
         record('who', item, { ok: first });
         showNext(stage, () => ctx.next(first));
       } else {
         tries++;
-        sfx.oops();
+        oops();
         b.classList.add('tried');
         shake(b);
         if (tries === 1) speak('Have another look.');
@@ -421,13 +523,13 @@ function playWord(stage, item, ctx) {
       gap.classList.add(ok ? 'filled' : 'fixed');
       if (ok) {
         b.classList.add('right');
-        sfx.good();
+        cheer();
         speak(`${pick(PRAISE)} ${line}`);
       } else {
         b.classList.add('wrong');
         shake(b);
         $(`.choice[data-v="${item.verb}"]`, stage).classList.add('hint');
-        sfx.oops();
+        oops();
         speak(`Nearly! We say: ${line}`);
       }
       ctx.setReplay(() => speak(line));
@@ -485,7 +587,7 @@ function playBuild(stage, item, ctx) {
           const ok = mistakes === 0;
           $$('.word-tile:not(.used)', stage).forEach((o) => o.classList.add('faded'));
           stage.querySelector('.slots').classList.add('complete');
-          sfx.good();
+          cheer();
           speak(`${ok ? pick(PRAISE) + ' ' : ''}${line}`);
           record('build', item, { ok });
           showNext(stage, () => ctx.next(ok));
@@ -493,7 +595,7 @@ function playBuild(stage, item, ctx) {
       } else {
         mistakes++;
         slotMistakes++;
-        sfx.oops();
+        oops();
         shake(b);
         if (t.role !== ORDER[pos]) shake(slots[pos]);
         if (slotMistakes >= 2) {
@@ -590,7 +692,7 @@ function playSay(stage, item, ctx) {
         speak(`Let's try again. Listen. ${line}`);
         return;
       }
-      if (rating === 'got') sfx.good();
+      if (rating === 'got') cheer();
       else sfx.tap();
       ctx.next(rating === 'got');
     }),
@@ -637,7 +739,7 @@ function playVocab(stage, item, ctx) {
         const rating = b.dataset.r;
         log({ rating });
         if (rating === 'again') return reveal('Let’s listen again. ');
-        if (rating === 'got') sfx.good();
+        if (rating === 'got') cheer();
         else sfx.tap();
         ctx.next(rating === 'got');
       }),
@@ -667,7 +769,7 @@ function playVocab(stage, item, ctx) {
         b.classList.add('right');
         $$('.pic', stage).forEach((o) => o !== b && o.classList.add('faded'));
         $('#reveal', stage).innerHTML = wordCard();
-        sfx.good();
+        cheer();
         speak(`${first ? pick(PRAISE) + ' ' : ''}${clapLine}`);
         ctx.setReplay(() => speak(clapLine));
         log({ ok: first });
@@ -675,7 +777,7 @@ function playVocab(stage, item, ctx) {
       } else {
         // Naming the wrong picture teaches that word too.
         tries++;
-        sfx.oops();
+        oops();
         b.classList.add('tried');
         shake(b);
         speak(`That’s ${the(picked)}. ${find ? ask : 'Try again.'}`);
@@ -861,8 +963,23 @@ function progressTab(body) {
 
   const played = timer.history(7);
   const weekMins = Math.round(played.reduce((n, d) => n + d.secs, 0) / 60);
+  const rated = SKILLS.filter((sk) => s.skills[sk.id])
+    .map((sk) => ({ sk, st: skillStats(s.log, sk.id) }))
+    .filter(({ st }) => st.recentCount >= 5)
+    .sort((a, b) => b.st.accuracy - a.st.accuracy);
+  const strong = rated.filter(({ st }) => st.accuracy >= 75).slice(0, 2);
+  const work = rated.filter(({ st }) => st.accuracy < 60).slice(-2);
+  const weekCard = `<div class="card week-card">
+      <h2>This week</h2>
+      <p>${esc(s.child.name)} practised on <b>${daysThisWeek} ${daysThisWeek === 1 ? 'day' : 'days'}</b>${weekMins ? `, for about <b>${weekMins} ${weekMins === 1 ? 'minute' : 'minutes'}</b> in total` : ''}.</p>
+      ${strong.length || work.length ? `<ul class="week-list">
+        ${strong.map(({ sk, st }) => `<li>Going well: <b>${sk.name}</b> (${st.accuracy}% right first time)</li>`).join('')}
+        ${work.map(({ sk, st }) => `<li class="work">Still learning: <b>${sk.name}</b> (${st.accuracy}%). Try saying it back the right way in everyday chat, e.g. “${sk.example}”</li>`).join('')}
+      </ul>` : '<p class="muted">After a few more games, this will show what’s going well and what to keep practising.</p>'}
+    </div>`;
   const topMins = Math.max(...played.map((d) => d.secs / 60), s.settings.minutes || 10);
   body.innerHTML = `
+    ${weekCard}
     <div class="summary">
       <div class="card stat"><b>${week.length}</b><span>tries this week</span></div>
       <div class="card stat"><b>${daysThisWeek}<small>/7</small></b><span>days practised</span></div>
@@ -948,6 +1065,7 @@ function settingsTab(body) {
     const s = store.get();
     const voices = britishVoices();
     body.innerHTML = `
+      <section class="group"><p class="group-title">Play</p>
       <div class="card">
         <h2>Play time</h2>
         <p class="muted">How long ${esc(s.child.name)} can play each day. Time in this grown-ups area doesn’t count. When time is up, Speechie lets them finish the turn they’re on, then says it’s time for a break.</p>
@@ -958,11 +1076,15 @@ function settingsTab(body) {
           <button class="btn" id="restart">${icon('again')} Start today’s time again</button>
         </div>
       </div>
+      </section>
+      <section class="group"><p class="group-title">Display</p>
       <div class="card">
         <h2>Text size</h2>
         ${seg('text', TEXT_SIZES, s.settings.textSize)}
         <p class="muted">Makes words and buttons bigger across Speechie.</p>
       </div>
+      </section>
+      <section class="group"><p class="group-title">Words game</p>
       <div class="card">
         <h2>Topic words</h2>
         <p class="muted">The words game follows the calendar: festivals like Halloween, Diwali, Christmas, Chinese New Year and Easter when they’re near, and the season the rest of the time. Right now that’s <b>${themeFor().name}</b>.</p>
@@ -971,6 +1093,8 @@ function settingsTab(body) {
           ${THEMES.map((t) => `<option value="${t.id}" ${t.id === s.settings.theme ? 'selected' : ''}>${t.art} ${t.name}</option>`).join('')}
         </select></label>
       </div>
+      </section>
+      <section class="group"><p class="group-title">Sound</p>
       <div class="card">
         <h2>Volume</h2>
         <label class="field"><span>Pip’s voice</span>
@@ -1001,13 +1125,17 @@ function settingsTab(body) {
         </label>
         <button class="btn" id="test">${icon('speaker')} Test the voice</button>
       </div>
+      </section>
+      <section class="group"><p class="group-title">Your child</p>
       <div class="card">
-        <h2>Your child</h2>
+        <h2>Name and buddy</h2>
         <label class="field"><span>Name</span><input id="name" maxlength="20" autocomplete="off" value="${esc(s.child.name)}"></label>
         <fieldset class="field"><legend>Buddy</legend><div class="avatar-grid">${AVATARS.map(
           (a) => `<button type="button" class="avatar-opt ${a === s.child.avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === s.child.avatar}">${a}</button>`,
         ).join('')}</div></fieldset>
       </div>
+      </section>
+      <section class="group"><p class="group-title">This device</p>
       <div class="card">
         <h2>Use it like an app</h2>
         <p class="muted">On iPad, open Speechie in Safari, tap the Share button, then <b>Add to Home Screen</b>. It opens full screen and works offline.</p>
@@ -1016,7 +1144,8 @@ function settingsTab(body) {
         <h2>Start fresh</h2>
         <p class="muted">Clears progress, stars and stickers. Name, skills and settings are kept.</p>
         <button class="btn btn-danger" id="reset">Reset progress</button>
-      </div>`;
+      </div>
+      </section>`;
 
     paintToday();
     onSeg(body, 'minutes', (v) => {

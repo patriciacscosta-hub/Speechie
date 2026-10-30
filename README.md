@@ -6,6 +6,9 @@ Version 1 focuses on **pronouns** (he / she / they) and **matching verbs** (she 
 
 ## The games
 
+The big **Let’s practise** button on the home screen plays a short mix of the games below, so children can press one button and go. Games can also be chosen one by one. During a game, the home button must be pressed and held to leave, so it can’t be tapped by accident.
+
+
 | Game | What the child does |
 | --- | --- |
 | **Who is it?** | Looks at the picture and picks He, She or They. |
