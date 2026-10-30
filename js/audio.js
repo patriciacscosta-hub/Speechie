@@ -44,6 +44,7 @@ export function speak(text, { rate } = {}) {
     u.lang = voice?.lang || 'en-GB';
     u.rate = rate ?? store.get().settings.rate;
     u.pitch = 1.05;
+    u.volume = store.get().settings.volume;
     let finished = false;
     const done = () => {
       if (!finished) {
@@ -84,7 +85,9 @@ export function unlockAudio() {
 }
 
 function tone(freq, at, dur, type = 'sine', vol = 0.16) {
-  if (!store.get().settings.sfx) return;
+  const { sfx, sfxVolume } = store.get().settings;
+  if (!sfx || !sfxVolume) return;
+  vol *= sfxVolume;
   const c = audioContext();
   if (!c) return;
   const osc = c.createOscillator();

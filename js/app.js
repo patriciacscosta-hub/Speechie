@@ -2,6 +2,7 @@ import * as store from './store.js';
 import { speak, stopSpeaking, britishVoices, onVoicesChanged, recorder, sfx, unlockAudio } from './audio.js';
 import { SKILLS, ACTIVITIES, AVATARS, STICKERS, PRAISE, makeRound, sentence, pick, shuffle } from './content.js';
 import { pip, icon } from './art.js';
+import * as timer from './timer.js';
 
 const app = document.getElementById('app');
 const fx = document.getElementById('fx');
@@ -13,13 +14,77 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // --- Screen plumbing ---
 
 let teardown = null;
-function mount(html, setup) {
+// timed: the play timer only counts on the children's screens.
+function mount(html, setup, { timed = false } = {}) {
   teardown?.();
   teardown = null;
   stopSpeaking();
+  timer.run(timed);
   app.innerHTML = html;
   window.scrollTo(0, 0);
+  paintTime();
   teardown = setup?.() || null;
+}
+
+const applyTextSize = () => (document.documentElement.dataset.text = store.get().settings.textSize);
+
+// --- Play timer ---
+
+const timePill = () =>
+  timer.limited()
+    ? `<div class="time-pill" id="timepill" role="timer" aria-label="Time left"><span class="time-pie"></span><span class="time-text"></span></div>`
+    : '';
+
+function paintTime() {
+  const pill = $('#timepill');
+  if (!pill) return;
+  const left = timer.left();
+  pill.style.setProperty('--left', left / (left + timer.usedToday() || 1));
+  $('.time-text', pill).textContent = left > 0 ? timer.format(left) : 'Last one!';
+  pill.classList.toggle('low', left <= 120);
+  pill.classList.toggle('last', left <= 60);
+}
+timer.onChange(paintTime);
+
+// When time runs out, a game in progress finishes its current turn first.
+timer.whenUp(() => {
+  if ($('.home, .stickers')) timeUp();
+});
+
+const lockBtn = () => `<button class="lock" id="lock" aria-label="Grown-ups: press and hold">
+    <svg class="lock-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/></svg>${icon('lock')}
+  </button>`;
+
+function timeUp() {
+  const name = store.get().child.name;
+  mount(
+    `<section class="screen timeup">
+      <span class="pip-big">${pip('calm')}</span>
+      <h1>Time for a break!</h1>
+      <p class="lead">Great practising today, ${esc(name)}. See you next time!</p>
+      <div class="timeup-lock">${lockBtn()}<p class="fine">Grown-ups: press and hold the lock to add more time.</p></div>
+      <div class="row" id="more" hidden>
+        <button class="btn btn-primary btn-big" data-add="5">${icon('plus')} 5 minutes</button>
+        <button class="btn btn-big" data-add="10">${icon('plus')} 10 minutes</button>
+        <button class="btn btn-big" id="grown">Grown-ups area</button>
+      </div>
+    </section>`,
+    () => {
+      speak(`Time for a break! Great practising today, ${name}.`);
+      holdToOpen($('#lock'), () => {
+        $('.timeup-lock').hidden = true;
+        $('#more').hidden = false;
+      });
+      $$('[data-add]').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.tap();
+          timer.addMinutes(Number(b.dataset.add));
+          home(true);
+        }),
+      );
+      $('#grown').addEventListener('click', () => grownups('settings'));
+    },
+  );
 }
 
 function toast(message) {
@@ -124,6 +189,7 @@ function setup() {
 // --- Child home ---
 
 function home(greet = false) {
+  if (timer.isUp()) return timeUp();
   const s = store.get();
   const c = s.child;
   const hello = `Hi ${c.name}! What shall we play?`;
@@ -132,10 +198,9 @@ function home(greet = false) {
       <header class="topbar">
         <div class="hello"><span class="hello-avatar">${c.avatar}</span><span class="hello-text"><small>Hello</small>${esc(c.name)}!</span></div>
         <div class="top-actions">
+          ${timePill()}
           <button class="chip" id="stickers" aria-label="My stickers">${icon('star')}<span>${s.stickers.length}</span></button>
-          <button class="lock" id="lock" aria-label="Grown-ups: press and hold">
-            <svg class="lock-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="21"/></svg>${icon('lock')}
-          </button>
+          ${lockBtn()}
         </div>
       </header>
       <div class="home-hero">
@@ -163,6 +228,7 @@ function home(greet = false) {
       holdToOpen($('#lock'), () => grownups());
       if (greet) speak(hello);
     },
+    { timed: true },
   );
 }
 
@@ -219,6 +285,7 @@ function showNext(stage, go) {
 }
 
 function play(activityId) {
+  if (timer.isUp()) return timeUp();
   const activity = ACTIVITIES.find((a) => a.id === activityId);
   const items = makeRound(activityId, store.get().skills);
   const render = { who: playWho, word: playWord, build: playBuild, say: playSay }[activityId];
@@ -230,7 +297,7 @@ function play(activityId) {
       <header class="playbar">
         <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
         <div class="dots" aria-label="Progress">${items.map(() => '<span class="dot"></span>').join('')}</div>
-        <button class="round-btn" id="replay" aria-label="Hear it again">${icon('speaker')}</button>
+        <div class="bar-end">${timePill()}<button class="round-btn" id="replay" aria-label="Hear it again">${icon('speaker')}</button></div>
       </header>
       <div class="stage" id="stage"></div>
     </section>`,
@@ -251,6 +318,7 @@ function play(activityId) {
         $$('.dot')[index].classList.add(firstTry ? 'star' : 'done');
         index++;
         if (index >= items.length) celebrate(activityId, roundStars, items.length);
+        else if (timer.isUp()) timeUp();
         else show();
       };
 
@@ -273,6 +341,7 @@ function play(activityId) {
         recorder.release();
       };
     },
+    { timed: true },
   );
 }
 
@@ -560,10 +629,12 @@ function celebrate(activityId, roundStars, total) {
         home();
       });
     },
+    { timed: true },
   );
 }
 
 function stickerBook() {
+  if (timer.isUp()) return timeUp();
   const s = store.get();
   mount(
     `<section class="screen stickers">
@@ -590,6 +661,7 @@ function stickerBook() {
       const n = s.stickers.length;
       speak(n ? `You have ${n} sticker${n === 1 ? '' : 's'}!` : 'Play a game to win your first sticker!');
     },
+    { timed: true },
   );
 }
 
@@ -644,6 +716,11 @@ function skillStats(log, skillId) {
   return { total: tries.length, recentCount: recent.length, accuracy, days, said: { got: count('got'), nearly: count('nearly'), again: count('again') } };
 }
 
+const minutes = (secs) => {
+  const m = Math.round(secs / 60);
+  return secs > 0 && m === 0 ? 'under 1 min' : `${m} min`;
+};
+
 function progressTab(body) {
   const s = store.get();
   const week = s.log.filter((e) => e.t >= Date.now() - 7 * DAY);
@@ -689,11 +766,22 @@ function progressTab(body) {
   });
   const nextSkill = SKILLS.find((sk) => !s.skills[sk.id]);
 
+  const played = timer.history(7);
+  const weekMins = Math.round(played.reduce((n, d) => n + d.secs, 0) / 60);
+  const topMins = Math.max(...played.map((d) => d.secs / 60), s.settings.minutes || 10);
   body.innerHTML = `
     <div class="summary">
       <div class="card stat"><b>${week.length}</b><span>tries this week</span></div>
       <div class="card stat"><b>${daysThisWeek}<small>/7</small></b><span>days practised</span></div>
+      <div class="card stat"><b>${weekMins}<small> min</small></b><span>played this week</span></div>
       <div class="card stat"><b>${s.stickers.length}<small>/${STICKERS.length}</small></b><span>stickers</span></div>
+    </div>
+    <div class="card">
+      <h2>Time played</h2>
+      <p class="muted">Today: <b>${minutes(timer.usedToday())}</b>${timer.limited() ? ` of ${s.settings.minutes} min` : ''}. Little and often works best.</p>
+      <div class="bars" aria-hidden="true">${played
+        .map((d) => `<span class="bar"><i style="height:${Math.max(4, Math.round((100 * d.secs) / 60 / topMins))}%"></i><small>${new Date(d.t).toLocaleDateString('en-GB', { weekday: 'short' })}</small></span>`)
+        .join('')}</div>
     </div>
     ${ready && nextSkill ? `<div class="card suggest">${icon('star')}<p><b>Ready for more?</b> ${esc(s.child.name)} is doing well. Try switching on <b>${nextSkill.name}</b> in Skills.</p></div>` : ''}
     <div class="skill-grid">${cards}</div>`;
@@ -721,17 +809,58 @@ function skillsTab(body) {
   );
 }
 
+// A row of big buttons where one is chosen.
+const seg = (id, options, current) =>
+  `<div class="seg" id="${id}" role="radiogroup">${options
+    .map(([v, label]) => `<button type="button" role="radio" class="seg-opt" data-v="${v}" aria-checked="${String(v) === String(current)}">${label}</button>`)
+    .join('')}</div>`;
+
+function onSeg(root, id, fn) {
+  const opts = $$(`#${id} .seg-opt`, root);
+  opts.forEach((b) =>
+    b.addEventListener('click', () => {
+      opts.forEach((o) => o.setAttribute('aria-checked', o === b));
+      fn(b.dataset.v);
+    }),
+  );
+}
+
+const MINUTES = [[0, 'No limit'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [20, '20 min'], [30, '30 min']];
+const TEXT_SIZES = [['normal', 'Normal'], ['large', 'Large'], ['xl', 'Extra large']];
+
 function settingsTab(body) {
   const draw = () => {
     const s = store.get();
     const voices = britishVoices();
     body.innerHTML = `
       <div class="card">
-        <h2>Your child</h2>
-        <label class="field"><span>Name</span><input id="name" maxlength="20" autocomplete="off" value="${esc(s.child.name)}"></label>
-        <fieldset class="field"><legend>Buddy</legend><div class="avatar-grid">${AVATARS.map(
-          (a) => `<button type="button" class="avatar-opt ${a === s.child.avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === s.child.avatar}">${a}</button>`,
-        ).join('')}</div></fieldset>
+        <h2>Play time</h2>
+        <p class="muted">How long ${esc(s.child.name)} can play each day. Time in this grown-ups area doesn’t count. When time is up, Speechie lets them finish the turn they’re on, then says it’s time for a break.</p>
+        ${seg('minutes', MINUTES, s.settings.minutes)}
+        <p class="time-today" id="today"></p>
+        <div class="row left">
+          <button class="btn" id="add5">${icon('plus')} 5 more minutes today</button>
+          <button class="btn" id="restart">${icon('again')} Start today’s time again</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Text size</h2>
+        ${seg('text', TEXT_SIZES, s.settings.textSize)}
+        <p class="muted">Makes words and buttons bigger across Speechie.</p>
+      </div>
+      <div class="card">
+        <h2>Volume</h2>
+        <label class="field"><span>Pip’s voice</span>
+          <input type="range" id="volume" min="0.2" max="1" step="0.1" value="${s.settings.volume}">
+          <span class="range-labels"><small>Quieter</small><small>Louder</small></span>
+        </label>
+        <label class="toggle-row"><span><b>Sound effects</b><small>Chimes for right answers and celebrations</small></span>
+          <input type="checkbox" class="switch" id="sfx" ${s.settings.sfx ? 'checked' : ''}></label>
+        <label class="field" ${s.settings.sfx ? '' : 'hidden'} id="sfx-volume-field"><span>Sound effects volume</span>
+          <input type="range" id="sfx-volume" min="0.1" max="1" step="0.1" value="${s.settings.sfxVolume}">
+          <span class="range-labels"><small>Quieter</small><small>Louder</small></span>
+        </label>
+        <p class="muted small">These set how loud Speechie is compared with the iPad’s own volume buttons.</p>
       </div>
       <div class="card">
         <h2>Voice</h2>
@@ -750,9 +879,11 @@ function settingsTab(body) {
         <button class="btn" id="test">${icon('speaker')} Test the voice</button>
       </div>
       <div class="card">
-        <h2>Sounds</h2>
-        <label class="toggle-row"><span><b>Sound effects</b><small>Chimes for right answers and celebrations</small></span>
-          <input type="checkbox" class="switch" id="sfx" ${s.settings.sfx ? 'checked' : ''}></label>
+        <h2>Your child</h2>
+        <label class="field"><span>Name</span><input id="name" maxlength="20" autocomplete="off" value="${esc(s.child.name)}"></label>
+        <fieldset class="field"><legend>Buddy</legend><div class="avatar-grid">${AVATARS.map(
+          (a) => `<button type="button" class="avatar-opt ${a === s.child.avatar ? 'on' : ''}" data-a="${a}" aria-pressed="${a === s.child.avatar}">${a}</button>`,
+        ).join('')}</div></fieldset>
       </div>
       <div class="card">
         <h2>Use it like an app</h2>
@@ -764,6 +895,38 @@ function settingsTab(body) {
         <button class="btn btn-danger" id="reset">Reset progress</button>
       </div>`;
 
+    paintToday();
+    onSeg(body, 'minutes', (v) => {
+      store.update((st) => (st.settings.minutes = Number(v)));
+      paintToday();
+    });
+    $('#add5', body).addEventListener('click', () => {
+      timer.addMinutes(5);
+      toast('5 minutes added for today');
+    });
+    $('#restart', body).addEventListener('click', () => {
+      timer.resetToday();
+      toast('Today’s play time starts again');
+    });
+    onSeg(body, 'text', (v) => {
+      store.update((st) => (st.settings.textSize = v));
+      applyTextSize();
+    });
+    $('#volume', body).addEventListener('change', (e) => {
+      store.update((st) => (st.settings.volume = Number(e.target.value)));
+      speak('Hello! This is how loud I am.');
+    });
+    $('#sfx', body).addEventListener('change', (e) => {
+      store.update((st) => (st.settings.sfx = e.target.checked));
+      $('#sfx-volume-field', body).hidden = !e.target.checked;
+    });
+    $('#sfx-volume', body).addEventListener('change', (e) => {
+      store.update((st) => (st.settings.sfxVolume = Number(e.target.value)));
+      sfx.good();
+    });
+    $('#voice', body)?.addEventListener('change', (e) => store.update((st) => (st.settings.voiceURI = e.target.value)));
+    $('#rate', body).addEventListener('change', (e) => store.update((st) => (st.settings.rate = Number(e.target.value))));
+    $('#test', body).addEventListener('click', () => speak(`She has a cat. They have a dog.`));
     $('#name', body).addEventListener('change', (e) => {
       const name = e.target.value.trim();
       if (name) store.update((st) => (st.child.name = name));
@@ -777,10 +940,6 @@ function settingsTab(body) {
         });
       }),
     );
-    $('#voice', body)?.addEventListener('change', (e) => store.update((st) => (st.settings.voiceURI = e.target.value)));
-    $('#rate', body).addEventListener('change', (e) => store.update((st) => (st.settings.rate = Number(e.target.value))));
-    $('#test', body).addEventListener('click', () => speak(`She has a cat. They have a dog.`));
-    $('#sfx', body).addEventListener('change', (e) => store.update((st) => (st.settings.sfx = e.target.checked)));
     $('#reset', body).addEventListener('click', () => {
       if (confirm('Reset all progress, stars and stickers? This can’t be undone.')) {
         store.resetProgress();
@@ -788,11 +947,24 @@ function settingsTab(body) {
       }
     });
   };
+
+  const paintToday = () => {
+    const el = $('#today', body);
+    if (!el) return;
+    const used = `Played today: <b>${minutes(timer.usedToday())}</b>`;
+    el.innerHTML = timer.limited() ? `${used} · Left: <b>${timer.format(timer.left())}</b>` : used;
+  };
+
   draw();
+  const stopTime = timer.onChange(paintToday);
   // Voices can load a moment after the page; redraw once if they arrive.
-  return onVoicesChanged(() => {
+  const stopVoices = onVoicesChanged(() => {
     if (!$('#voice', body) && britishVoices().length) draw();
   });
+  return () => {
+    stopTime();
+    stopVoices();
+  };
 }
 
 function tipsTab(body) {
@@ -814,4 +986,5 @@ if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
+applyTextSize();
 splash();

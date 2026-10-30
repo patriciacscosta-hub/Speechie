@@ -5,7 +5,15 @@ const KEY = 'speechie.v1';
 const defaults = () => ({
   child: null, // { name, avatar }
   skills: { hs: true, they: true, isare: true, hashave: true, verbs: false, waswere: false },
-  settings: { voiceURI: '', rate: 0.85, sfx: true },
+  settings: {
+    voiceURI: '',
+    rate: 0.85,
+    volume: 1, // Pip's voice, 0.2–1
+    sfx: true,
+    sfxVolume: 0.8,
+    minutes: 10, // daily play time; 0 = no limit
+    textSize: 'normal', // normal | large | xl
+  },
   stars: 0,
   stickers: [],
   rounds: 0,

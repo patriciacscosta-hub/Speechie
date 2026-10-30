@@ -26,7 +26,11 @@
 }
 
 * { box-sizing: border-box; margin: 0; }
+[hidden] { display: none !important; }
 html, body { min-height: 100%; }
+/* Text size, chosen by grown-ups in Settings. Almost everything is sized in rem. */
+html[data-text="large"] { font-size: 112.5%; }
+html[data-text="xl"] { font-size: 125%; }
 body {
   background: var(--bg);
   background-image:
@@ -222,6 +226,23 @@ button:disabled { cursor: default; }
 .playbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .bar-title { font-size: 1.8rem; font-weight: 900; }
 .dots { display: flex; gap: 10px; }
+.bar-end { display: flex; align-items: center; gap: 12px; }
+
+/* Time left: a little pie that empties, plus minutes and seconds. */
+.time-pill {
+  --left: 1; --pie: var(--teal);
+  display: inline-flex; align-items: center; gap: 10px;
+  height: 56px; padding: 0 18px 0 12px; border-radius: 999px;
+  background: var(--card); font-size: 1.25rem; font-weight: 900; font-variant-numeric: tabular-nums;
+  box-shadow: 0 5px 0 var(--line-2), var(--shadow);
+}
+.time-pie {
+  width: 32px; height: 32px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--pie) calc(var(--left) * 360deg), #F2ECE4 0);
+  box-shadow: inset 0 0 0 3px #fff, 0 0 0 2px var(--line);
+}
+.time-pill.low { --pie: var(--sun); }
+.time-pill.last { --pie: var(--coral); color: var(--coral-d); animation: pulse 1.6s ease-in-out infinite; }
 .dot {
   width: 18px; height: 18px; border-radius: 50%; background: var(--line-2);
   transition: transform .2s, background .2s;
@@ -409,6 +430,13 @@ button:disabled { cursor: default; }
 .round-stars span:nth-child(4) { animation-delay: .3s; } .round-stars span:nth-child(5) { animation-delay: .4s; }
 .round-stars span:nth-child(6) { animation-delay: .5s; }
 .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 10px; }
+.row.left { justify-content: flex-start; margin-top: 0; gap: 12px; }
+
+.timeup { align-items: center; justify-content: center; gap: 16px; text-align: center; }
+.timeup h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 900; }
+.timeup .pip-big .pip { width: min(40vw, 230px); }
+.timeup-lock { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
+.timeup-lock .lock { width: 72px; height: 72px; background: var(--card); box-shadow: 0 4px 0 var(--line), var(--shadow); }
 
 .sticker-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 16px;
@@ -436,7 +464,7 @@ button:disabled { cursor: default; }
 .muted { color: var(--ink-2); font-weight: 600; }
 .small { font-size: .92rem; }
 
-.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .stat { align-items: flex-start; gap: 2px !important; }
 .stat b { font-size: 2.2rem; font-weight: 900; line-height: 1.1; }
 .stat b small { font-size: 1.1rem; color: var(--ink-2); }
@@ -483,6 +511,16 @@ button:disabled { cursor: default; }
 input[type="range"] { width: 100%; accent-color: var(--lilac); height: 32px; }
 .range-labels { display: flex; justify-content: space-between; color: var(--ink-2); }
 .grown-body .btn { align-self: flex-start; }
+.grown-body .row .btn { align-self: auto; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg-opt {
+  min-height: 52px; padding: 0 20px; border-radius: 16px;
+  background: #FFF8F0; border: 3px solid var(--line); font-weight: 800;
+}
+.seg-opt[aria-checked="true"] { border-color: var(--lilac); background: #EFEBFF; color: var(--lilac-d); }
+.time-today { color: var(--ink-2); font-weight: 600; }
+.time-today b { color: var(--ink); }
 
 .tips { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 .tip { flex-direction: row !important; align-items: flex-start; gap: 16px !important; }
@@ -514,7 +552,9 @@ input[type="range"] { width: 100%; accent-color: var(--lilac); height: 32px; }
 @media (max-width: 640px) {
   .tiles { grid-template-columns: 1fr 1fr; }
   .tile { min-height: 150px; border-radius: 28px; }
-  .summary { grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .summary { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .topbar { flex-wrap: wrap; }
+  .time-pill, .chip { height: 50px; font-size: 1.1rem; }
   .stat b { font-size: 1.6rem; }
   .avatar-grid { gap: 6px; }
   .avatar-opt { font-size: 1.8rem; border-radius: 16px; }

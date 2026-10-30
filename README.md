@@ -15,13 +15,17 @@ Version 1 focuses on **pronouns** (he / she / they) and **matching verbs** (she 
 
 Each round is 6 turns and ends with a sticker for the sticker book. All instructions are spoken aloud, so children don't need to read.
 
+## Play timer
+
+A time-left pie shows on the home and game screens. When time runs out, your child finishes the turn they're on and Speechie says it's time for a break. Grown-ups can press and hold the lock to add 5 or 10 minutes. Time in the grown-ups area doesn't count, and the Progress tab shows minutes played each day.
+
 ## Grown-ups area
 
 Press and hold the lock on the home screen to open it.
 
 - **Progress:** accuracy per skill, practice days, Say it ratings.
 - **Skills:** switch skills on and off as your child gets more confident.
-- **Settings:** name, buddy, British English voice and speed, sound effects.
+- **Settings:** daily play time (10 minutes by default), text size, volume, British English voice and speed, sound effects, name and buddy.
 - **Tips:** simple ways to help at home.
 
 ## Privacy
@@ -47,6 +51,7 @@ js/app.js             screens and games
 js/content.js         skills, pictures and sentence generator
 js/audio.js           speech, recording, sound effects
 js/store.js           progress saved on the device
+js/timer.js           daily play timer
 js/art.js             Pip the mascot and icons
 sw.js                 offline support
 manifest.webmanifest  home-screen app details
