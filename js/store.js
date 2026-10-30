@@ -13,6 +13,7 @@ const defaults = () => ({
     sfxVolume: 0.8,
     minutes: 10, // daily play time; 0 = no limit
     textSize: 'normal', // normal | large | xl
+    theme: 'auto', // topic words: 'auto' follows the calendar, or a theme id
   },
   stars: 0,
   stickers: [],

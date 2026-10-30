@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh in the background.
 // Bump VERSION whenever app files change so devices pick up the update.
-const VERSION = 'speechie-v2';
+const VERSION = 'speechie-v3';
 const FILES = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ const FILES = [
   'js/content.js',
   'js/store.js',
   'js/timer.js',
+  'js/themes.js',
   'icons/icon.svg',
   'icons/icon-180.png',
   'icons/icon-192.png',

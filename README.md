@@ -13,6 +13,8 @@ Version 1 focuses on **pronouns** (he / she / they) and **matching verbs** (she 
 | **Build it** | Taps colour-coded tiles into Who → Doing → What slots. |
 | **Say it** | Hears the sentence, records their own try, plays it back. The grown-up taps *Got it / Nearly / Try again*. |
 
+**Seasonal words** (the wide banner on the home screen) teaches topic vocabulary that follows the calendar: Halloween, Bonfire Night, Diwali, Christmas, Chinese New Year, Easter and back to school when they're near, otherwise the season. Each round mixes *find the picture*, *guess from a clue* and *say the word*, and shows each word split into claps (syllables). Grown-ups can pick a topic by hand in Settings. Festival dates that move each year are listed up to 2030 in `js/themes.js`.
+
 Each round is 6 turns and ends with a sticker for the sticker book. All instructions are spoken aloud, so children don't need to read.
 
 ## Play timer
@@ -52,6 +54,7 @@ js/content.js         skills, pictures and sentence generator
 js/audio.js           speech, recording, sound effects
 js/store.js           progress saved on the device
 js/timer.js           daily play timer
+js/themes.js          seasonal topic words and calendar
 js/art.js             Pip the mascot and icons
 sw.js                 offline support
 manifest.webmanifest  home-screen app details

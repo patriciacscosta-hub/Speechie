@@ -3,6 +3,7 @@ import { speak, stopSpeaking, britishVoices, onVoicesChanged, recorder, sfx, unl
 import { SKILLS, ACTIVITIES, AVATARS, STICKERS, PRAISE, makeRound, sentence, pick, shuffle } from './content.js';
 import { pip, icon } from './art.js';
 import * as timer from './timer.js';
+import { THEMES, currentTheme, themeFor, makeWordRound, the } from './themes.js';
 
 const app = document.getElementById('app');
 const fx = document.getElementById('fx');
@@ -193,6 +194,7 @@ function home(greet = false) {
   const s = store.get();
   const c = s.child;
   const hello = `Hi ${c.name}! What shall we play?`;
+  const theme = currentTheme(s.settings.theme);
   mount(
     `<section class="screen home">
       <header class="topbar">
@@ -207,7 +209,12 @@ function home(greet = false) {
         <button class="pip-btn bob" id="pip" aria-label="Hear Pip">${pip('happy')}</button>
         <div class="bubble">What shall we play?</div>
       </div>
-      <div class="tiles">${ACTIVITIES.map(
+      <div class="tiles">
+        <button class="tile tile-theme" data-act="words" style="--t1:${theme.colours[0]};--t2:${theme.colours[1]}">
+          <span class="tile-art">${theme.art}</span>
+          <span class="theme-text"><span class="tile-name">${theme.name} words</span><span class="theme-peek">${theme.words.slice(0, 5).map((w) => w.e).join(' ')}</span></span>
+        </button>
+        ${ACTIVITIES.map(
         (a) => `<button class="tile tile-${a.colour}" data-act="${a.id}">
             <span class="tile-art">${a.art}</span><span class="tile-name">${a.name}</span>
           </button>`,
@@ -286,9 +293,10 @@ function showNext(stage, go) {
 
 function play(activityId) {
   if (timer.isUp()) return timeUp();
-  const activity = ACTIVITIES.find((a) => a.id === activityId);
-  const items = makeRound(activityId, store.get().skills);
-  const render = { who: playWho, word: playWord, build: playBuild, say: playSay }[activityId];
+  const theme = currentTheme(store.get().settings.theme);
+  const activity = activityId === 'words' ? { intro: theme.intro } : ACTIVITIES.find((a) => a.id === activityId);
+  const items = activityId === 'words' ? makeWordRound(theme) : makeRound(activityId, store.get().skills);
+  const render = { who: playWho, word: playWord, build: playBuild, say: playSay, words: playVocab }[activityId];
   let index = 0;
   let roundStars = 0;
 
@@ -331,6 +339,7 @@ function play(activityId) {
         stage.classList.add('enter');
         itemTeardown = render(stage, items[index], {
           intro: index === 0 ? activity.intro + ' ' : '',
+          theme,
           setReplay: (fn) => (replay = fn),
           next,
         });
@@ -496,6 +505,15 @@ function playBuild(stage, item, ctx) {
   );
 }
 
+const judgeHTML = () => `<div class="judge">
+    <p class="judge-title">${icon('lock')} Grown-up: how did it sound?</p>
+    <div class="judge-row">
+      <button class="judge-btn got" data-r="got">${icon('check')} Got it</button>
+      <button class="judge-btn nearly" data-r="nearly">Nearly</button>
+      <button class="judge-btn again" data-r="again">${icon('again')} Try again</button>
+    </div>
+  </div>`;
+
 // Say it — hear the model, record a try, play it back, grown-up gives a rating.
 function playSay(stage, item, ctx) {
   const line = sentence(item);
@@ -508,14 +526,7 @@ function playSay(stage, item, ctx) {
       <button class="say-btn mine" id="mine" disabled>${icon('play')}<span>Hear me</span></button>` : ''}
     </div>
     ${canRecord ? '' : '<p class="note">Say it out loud together, then a grown-up taps below.</p>'}
-    <div class="judge">
-      <p class="judge-title">${icon('lock')} Grown-up: how did it sound?</p>
-      <div class="judge-row">
-        <button class="judge-btn got" data-r="got">${icon('check')} Got it</button>
-        <button class="judge-btn nearly" data-r="nearly">Nearly</button>
-        <button class="judge-btn again" data-r="again">${icon('again')} Try again</button>
-      </div>
-    </div>`;
+    ${judgeHTML()}`;
   const model = () => speak(line, { rate: store.get().settings.rate * 0.95 });
   ctx.setReplay(model);
   speak(ctx.intro + line);
@@ -590,6 +601,88 @@ function playSay(stage, item, ctx) {
     player?.pause();
     recorder.release();
   };
+}
+
+// Topic words — find the picture, guess it from a clue, or say its name.
+// Each new word is shown split into claps (syllables), which helps children say it.
+function playVocab(stage, item, ctx) {
+  const { word } = item;
+  const log = (extra) => store.logAttempt({ activity: 'words', skill: 'vocab', theme: ctx.theme.id, word: word.w, type: item.type, ...extra });
+  const claps = word.s.split('-');
+  const clapLine = `${cap(word.w)}. Let’s clap it: ${claps.length === 1 ? 'one clap' : `${claps.length} claps`}.`;
+  const wordCard = () => `<div class="word-card">
+      <p class="vword">${claps.map((c) => `<span>${esc(c)}</span>`).join('')}</p>
+      <p class="claps" aria-label="${claps.length} claps">${'👏'.repeat(claps.length)}</p>
+    </div>`;
+
+  if (item.type === 'say') {
+    const ask = 'What’s this? Can you say it?';
+    stage.innerHTML = `<div class="scene solo"><span class="scene-thing">${word.e}</span></div>
+      <div class="prompt" id="reveal"><p class="question">${ask}</p></div>
+      <div class="say-row"><button class="say-btn listen" id="listen">${icon('speaker')}<span>Hear it</span></button></div>
+      ${judgeHTML()}`;
+    const reveal = (before = '') => {
+      $('#reveal', stage).innerHTML = wordCard();
+      speak(before + clapLine);
+      ctx.setReplay(() => speak(clapLine));
+    };
+    ctx.setReplay(() => speak(ask));
+    speak(ctx.intro + ask);
+    $('#listen', stage).addEventListener('click', () => {
+      sfx.tap();
+      reveal();
+    });
+    $$('.judge-btn', stage).forEach((b) =>
+      b.addEventListener('click', () => {
+        const rating = b.dataset.r;
+        log({ rating });
+        if (rating === 'again') return reveal('Let’s listen again. ');
+        if (rating === 'got') sfx.good();
+        else sfx.tap();
+        ctx.next(rating === 'got');
+      }),
+    );
+    return;
+  }
+
+  const find = item.type === 'find';
+  const ask = find ? `Find ${the(word)}.` : `${word.c} What is it?`;
+  stage.innerHTML = `<div class="scene pics">${item.options
+      .map((o, k) => `<button class="pic" data-k="${k}" aria-label="${esc(o.w)}">${o.e}</button>`)
+      .join('')}</div>
+    <div class="prompt" id="reveal"><p class="question">${esc(find ? `Find ${the(word)}` : word.c)}</p></div>
+    <div class="next-slot"></div>`;
+  ctx.setReplay(() => speak(ask));
+  speak(ctx.intro + ask);
+
+  let tries = 0;
+  let done = false;
+  $$('.pic', stage).forEach((b) =>
+    b.addEventListener('click', () => {
+      if (done || b.classList.contains('tried')) return;
+      const picked = item.options[b.dataset.k];
+      if (picked === word) {
+        done = true;
+        const first = tries === 0;
+        b.classList.add('right');
+        $$('.pic', stage).forEach((o) => o !== b && o.classList.add('faded'));
+        $('#reveal', stage).innerHTML = wordCard();
+        sfx.good();
+        speak(`${first ? pick(PRAISE) + ' ' : ''}${clapLine}`);
+        ctx.setReplay(() => speak(clapLine));
+        log({ ok: first });
+        showNext(stage, () => ctx.next(first));
+      } else {
+        // Naming the wrong picture teaches that word too.
+        tries++;
+        sfx.oops();
+        b.classList.add('tried');
+        shake(b);
+        speak(`That’s ${the(picked)}. ${find ? ask : 'Try again.'}`);
+        if (tries >= 2) $(`.pic[data-k="${item.options.indexOf(word)}"]`, stage).classList.add('hint');
+      }
+    }),
+  );
 }
 
 // --- End of round ---
@@ -784,7 +877,29 @@ function progressTab(body) {
         .join('')}</div>
     </div>
     ${ready && nextSkill ? `<div class="card suggest">${icon('star')}<p><b>Ready for more?</b> ${esc(s.child.name)} is doing well. Try switching on <b>${nextSkill.name}</b> in Skills.</p></div>` : ''}
-    <div class="skill-grid">${cards}</div>`;
+    <div class="skill-grid">${cards}</div>
+    ${wordsCard(s)}`;
+}
+
+function wordsCard(s) {
+  const tries = s.log.filter((e) => e.activity === 'words');
+  if (!tries.length) return '';
+  const taps = tries.filter((e) => e.type !== 'say').slice(-20);
+  const accuracy = taps.length ? Math.round((100 * taps.filter((e) => e.ok).length) / taps.length) : null;
+  const known = new Map();
+  for (const e of tries) {
+    if (!(e.ok || e.rating === 'got')) continue;
+    const w = THEMES.find((t) => t.id === e.theme)?.words.find((x) => x.w === e.word);
+    if (w) known.set(w.w, w);
+  }
+  return `<article class="card">
+      <h2>Topic words</h2>
+      <p class="muted">Finding pictures, guessing from clues and saying the names of seasonal words.</p>
+      ${accuracy === null ? '' : `<div class="meter"><div class="meter-fill" style="width:${accuracy}%"></div></div>
+        <p><b class="big-num">${accuracy}%</b> found first time <span class="muted small">(last ${taps.length})</span></p>`}
+      ${known.size ? `<p class="small">Words ${esc(s.child.name)} has got right (${known.size}):</p>
+        <div class="known">${[...known.values()].map((w) => `<span>${w.e} ${esc(w.w)}</span>`).join('')}</div>` : ''}
+    </article>`;
 }
 
 function skillsTab(body) {
@@ -847,6 +962,14 @@ function settingsTab(body) {
         <h2>Text size</h2>
         ${seg('text', TEXT_SIZES, s.settings.textSize)}
         <p class="muted">Makes words and buttons bigger across Speechie.</p>
+      </div>
+      <div class="card">
+        <h2>Topic words</h2>
+        <p class="muted">The words game follows the calendar: festivals like Halloween, Diwali, Christmas, Chinese New Year and Easter when they’re near, and the season the rest of the time. Right now that’s <b>${themeFor().name}</b>.</p>
+        <label class="field"><span>Topic</span><select id="theme">
+          <option value="auto">Automatic (follows the calendar)</option>
+          ${THEMES.map((t) => `<option value="${t.id}" ${t.id === s.settings.theme ? 'selected' : ''}>${t.art} ${t.name}</option>`).join('')}
+        </select></label>
       </div>
       <div class="card">
         <h2>Volume</h2>
@@ -912,6 +1035,7 @@ function settingsTab(body) {
       store.update((st) => (st.settings.textSize = v));
       applyTextSize();
     });
+    $('#theme', body).addEventListener('change', (e) => store.update((st) => (st.settings.theme = e.target.value)));
     $('#volume', body).addEventListener('change', (e) => {
       store.update((st) => (st.settings.volume = Number(e.target.value)));
       speak('Hello! This is how loud I am.');

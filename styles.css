@@ -221,6 +221,18 @@ button:disabled { cursor: default; }
 }
 .tile-name { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 900; }
 
+/* Seasonal words: a wide banner above the four games, coloured for the topic. */
+.tiles { grid-template-rows: auto 1fr 1fr; }
+.tile-theme {
+  grid-column: 1 / -1; flex-direction: row; justify-content: flex-start; gap: 22px;
+  min-height: 0; padding: 16px 28px;
+  background: linear-gradient(110deg, var(--t1), var(--t2));
+  box-shadow: 0 8px 0 rgba(0, 0, 0, .18), var(--shadow);
+}
+.tile-theme .tile-art { width: clamp(76px, 10vh, 96px); font-size: clamp(2.4rem, 5vh, 3rem); }
+.theme-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-shadow: 0 2px 0 rgba(0, 0, 0, .12); }
+.theme-peek { font-size: 1.6rem; letter-spacing: .1em; }
+
 /* ---------- Playing ---------- */
 
 .playbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -411,6 +423,31 @@ button:disabled { cursor: default; }
   .slots { flex-wrap: nowrap; width: 100%; }
   .slot { min-width: 0; flex: 1 1 auto; padding-left: 10px; padding-right: 10px; }
 }
+
+/* Topic words */
+.stage > .scene.pics {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 18px;
+  width: min(100%, 520px); aspect-ratio: auto; background: #FFF9F2;
+}
+.pic {
+  aspect-ratio: 1; border-radius: 28px; display: grid; place-items: center;
+  font-size: clamp(64px, 11vh, 110px); line-height: 1;
+  background: var(--card); border: 4px solid transparent; box-shadow: 0 6px 0 var(--line-2);
+  transition: transform .1s, box-shadow .1s, opacity .25s;
+}
+.pic:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--line-2); }
+.pic.right { border-color: var(--good); background: #E3F8EC; animation: pop .45s ease; }
+.pic.tried, .pic.faded { opacity: .35; }
+.pic.hint { border-color: var(--sun); animation: pulse 1s ease-in-out infinite; }
+.stage > .scene.solo { align-items: center; }
+.scene.solo .scene-thing { font-size: clamp(120px, 24vh, 220px); }
+.word-card { display: flex; flex-direction: column; align-items: center; gap: 6px; animation: pop .4s ease; }
+.vword { display: flex; gap: 6px; font-size: clamp(2rem, 4.6vw, 3rem); font-weight: 900; }
+.vword span { padding: 0 .3em; border-radius: 14px; background: #EFEBFF; box-shadow: inset 0 -5px 0 var(--lilac); }
+.vword span:nth-child(even) { background: #FFE9D4; box-shadow: inset 0 -5px 0 var(--who); }
+.claps { font-size: 1.8rem; letter-spacing: .15em; }
+.known { display: flex; flex-wrap: wrap; gap: 8px; }
+.known span { padding: 6px 12px; border-radius: 999px; background: #F5EFE7; font-weight: 800; }
 
 /* ---------- Celebrate & stickers ---------- */
 
