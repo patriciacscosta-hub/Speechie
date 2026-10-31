@@ -1,6 +1,6 @@
 // Offline support: serve from cache, refresh in the background.
 // Bump VERSION whenever app files change so devices pick up the update.
-const VERSION = 'speechie-v5';
+const VERSION = 'speechie-v6';
 const FILES = [
   './',
   'index.html',

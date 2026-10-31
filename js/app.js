@@ -412,8 +412,6 @@ function moreGames() {
 
 // --- Playing a round ---
 
-const PRON_ART = { he: '👦', she: '👧', they: '👧👦' };
-
 const sceneHTML = (item) => `
   <div class="scene ${item.people.length > 1 ? 'many' : ''}">
     <span class="scene-people">${item.people.map((p) => `<span>${p}</span>`).join('')}</span>
@@ -552,7 +550,7 @@ function playWho(stage, item, ctx) {
   stage.innerHTML = `${sceneHTML(item)}
     <div class="prompt"><p class="question">${question}</p></div>
     <div class="choices">${item.choices
-      .map((p) => `<button class="choice pron" data-p="${p}"><span class="choice-art">${PRON_ART[p]}</span><span class="choice-word">${cap(p)}</span></button>`)
+      .map((p) => `<button class="choice pron word" data-p="${p}"><span class="choice-word">${cap(p)}</span></button>`)
       .join('')}</div>
     <div class="next-slot"></div>`;
   ctx.setReplay(() => speak(question));
@@ -798,13 +796,14 @@ function playSay(stage, item, ctx) {
 // More grammar games — a picture, a sentence with a gap (or a question), and big choices.
 function playPick(stage, item, ctx) {
   const gap = !item.prompt;
+  const long = item.options.some((o) => o.label.length > 8); // keep all answers the same size
   const prompt = gap
     ? `<p class="sentence"><span class="w who">${item.before}</span> <span class="w doing gap" data-gap>?</span>${item.after ? ` <span class="w what">${item.after}</span>` : ''}</p>`
     : `<p class="question">${item.prompt}</p>`;
   stage.innerHTML = `${item.scene}
     <div class="prompt">${prompt}</div>
     <div class="choices">${item.options
-      .map((o, k) => `<button class="choice ${o.art ? 'card' : 'word'}" data-k="${k}">${o.art ? `<span class="choice-art">${o.art}</span>` : ''}<span class="choice-word">${o.label}</span></button>`)
+      .map((o, k) => `<button class="choice word ${long ? 'long' : ''}" data-k="${k}"><span class="choice-word">${o.label}</span></button>`)
       .join('')}</div>
     <div class="next-slot"></div>`;
   ctx.setReplay(() => speak(item.ask));

@@ -109,9 +109,9 @@ function question(kind) {
     where: `Where ${be} ${pron} ${doing} ${what}?`,
   }[kind];
   const options = [
-    { label: PERSON[pron], art: kids, kind: 'who' },
-    { label: what, art: whatArt, kind: 'what' },
-    { label: where, art: whereArt, kind: 'where' },
+    { label: PERSON[pron], kind: 'who' },
+    { label: what, kind: 'what' },
+    { label: where, kind: 'where' },
   ];
   return {
     skill: 'question',

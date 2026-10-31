@@ -497,9 +497,7 @@ button:disabled { cursor: default; }
 .scene-place { font-size: clamp(56px, 10vh, 110px); line-height: 1; }
 .q-scene .scene-people { font-size: clamp(64px, 12vh, 130px); line-height: 1; }
 .q-scene .scene-thing { font-size: clamp(44px, 8vh, 80px); }
-.choice.card { min-width: 0; flex: 1 1 0; max-width: 200px; padding: 12px 14px; }
-.choice.card .choice-art { font-size: 2.4rem; letter-spacing: 0; }
-.choice.card .choice-word { font-size: clamp(1.05rem, 2vw, 1.35rem); line-height: 1.15; }
+.choice.long .choice-word { font-size: clamp(1.25rem, 2.4vw, 1.6rem); line-height: 1.15; }
 .answer-line { margin-top: 8px; font-size: clamp(1.2rem, 2.6vw, 1.6rem); font-weight: 900; color: var(--good-d); animation: pop .4s ease; }
 .prompt { flex-direction: column; }
 
