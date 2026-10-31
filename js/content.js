@@ -8,6 +8,10 @@ export const SKILLS = [
   { id: 'hashave', group: 'verb', name: 'has / have', example: 'He has a dog. They have a dog.', about: 'has for he and she, have for they.' },
   { id: 'verbs', group: 'verb', name: 'Action words', example: 'She plays. They play.', about: 'Adding -s to the action for he and she.' },
   { id: 'waswere', group: 'verb', name: 'was / were', example: 'He was happy. They were happy.', about: 'Talking about the past.' },
+  { id: 'plural', group: 'more', name: 'One or lots?', example: 'One cat. Three cats.', about: 'Adding -s when there’s more than one.' },
+  { id: 'prep', group: 'more', name: 'in / on / under', example: 'The cat is under the table.', about: 'Words for where things are.' },
+  { id: 'past', group: 'more', name: 'Yesterday (-ed)', example: 'Yesterday she played football.', about: 'Adding -ed for things that already happened.' },
+  { id: 'question', group: 'more', name: 'Who, what, where?', example: 'Where is she reading? In bed.', about: 'Knowing what each question word asks for.' },
 ];
 
 export const ACTIVITIES = [
@@ -24,7 +28,7 @@ export const STICKERS = ['🦄', '🐙', '🦖', '🚀', '🌈', '🍩', '🦋',
 
 export const PRAISE = ['Yes!', 'Brilliant!', 'Well done!', 'Super!', 'You got it!', 'Fantastic!'];
 
-const TONES = ['', '\u{1F3FB}', '\u{1F3FC}', '\u{1F3FD}', '\u{1F3FE}', '\u{1F3FF}'];
+export const TONES = ['', '\u{1F3FB}', '\u{1F3FC}', '\u{1F3FD}', '\u{1F3FE}', '\u{1F3FF}'];
 
 const PEOPLE = {
   she: ['👧', '👩', '👵'],

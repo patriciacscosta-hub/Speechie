@@ -4,7 +4,7 @@ const KEY = 'speechie.v1';
 
 const defaults = () => ({
   child: null, // { name, avatar }
-  skills: { hs: true, they: true, isare: true, hashave: true, verbs: false, waswere: false },
+  skills: { hs: true, they: true, isare: true, hashave: true, verbs: false, waswere: false, plural: true, prep: true, past: true, question: true },
   settings: {
     voiceURI: '',
     rate: 0.85,
@@ -17,6 +17,8 @@ const defaults = () => ({
   },
   stars: 0,
   stickers: [],
+  days: [], // days with at least one finished round, YYYY-MM-DD
+  hat: '', // what Pip is wearing
   rounds: 0,
   log: [], // { t, activity, skill, pron, ok?, rating? }
 });

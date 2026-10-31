@@ -6,6 +6,18 @@ const MOUTHS = {
   calm: '<path d="M50 66 Q60 71 70 66" fill="none" stroke="#2E2A4F" stroke-width="4.5" stroke-linecap="round"/>',
 };
 
+// Things Pip can wear, unlocked by practising on more days.
+export const HATS = [
+  { e: '🎀', name: 'bow', days: 1 },
+  { e: '🧢', name: 'cap', days: 3 },
+  { e: '🎩', name: 'top hat', days: 5 },
+  { e: '🌸', name: 'flower', days: 8 },
+  { e: '🎓', name: 'graduation hat', days: 12 },
+  { e: '👑', name: 'crown', days: 16 },
+];
+let hat = '';
+export const wear = (e) => (hat = e);
+
 export function pip(mood = 'happy') {
   return `<svg class="pip" viewBox="0 0 120 112" aria-hidden="true">
     <path d="M60 6c29 0 52 19 52 43S89 92 60 92c-6 0-12-.8-17.6-2.3L20 105l5.8-20.6C14.4 76.6 8 63.4 8 49 8 25 31 6 60 6z" fill="#FF7A59"/>
@@ -17,6 +29,7 @@ export function pip(mood = 'happy') {
     <ellipse cx="32" cy="60" rx="7" ry="4.5" fill="#FF4F86" opacity=".4"/>
     <ellipse cx="88" cy="60" rx="7" ry="4.5" fill="#FF4F86" opacity=".4"/>
     ${MOUTHS[mood] || MOUTHS.happy}
+    ${hat ? `<text x="84" y="22" font-size="38" text-anchor="middle" transform="rotate(14 84 10)">${hat}</text>` : ''}
   </svg>`;
 }
 

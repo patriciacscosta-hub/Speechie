@@ -1,7 +1,8 @@
 import * as store from './store.js';
 import { speak, stopSpeaking, britishVoices, onVoicesChanged, recorder, sfx, unlockAudio } from './audio.js';
 import { SKILLS, ACTIVITIES, AVATARS, STICKERS, PRAISE, makeRound, sentence, pick, shuffle } from './content.js';
-import { pip, icon } from './art.js';
+import { pip, icon, HATS, wear } from './art.js';
+import { GRAMMAR, makeGrammarRound } from './grammar.js';
 import * as timer from './timer.js';
 import { THEMES, currentTheme, themeFor, makeWordRound, the } from './themes.js';
 
@@ -248,6 +249,7 @@ function home(greet = false) {
   const c = s.child;
   const hello = `Hi ${c.name}! Ready to practise?`;
   const theme = currentTheme(s.settings.theme);
+  const today = wordOfTheDay(theme);
   mount(
     `<section class="screen home">
       <header class="topbar">
@@ -264,6 +266,9 @@ function home(greet = false) {
           <div class="bubble">Ready to practise?</div>
           <button class="btn-go" data-act="mix">${icon('play')} Let’s practise</button>
         </div>
+        <button class="wotd" id="wotd" aria-label="Word of the day: ${esc(today.w)}">
+          <small>Word of the day</small><span class="wotd-art">${today.e}</span><b>${esc(today.w)}</b>
+        </button>
       </div>
       <p class="section-label">Or choose a game</p>
       <div class="tiles">
@@ -275,7 +280,9 @@ function home(greet = false) {
         (a) => `<button class="tile tile-${a.colour}" data-act="${a.id}">
             <span class="tile-art">${a.art}</span><span class="tile-name">${a.name}</span>
           </button>`,
-      ).join('')}</div>
+      ).join('')}
+        <button class="tile tile-pink" id="more"><span class="tile-art">🎲</span><span class="tile-name">More games</span></button>
+      </div>
     </section>`,
     () => {
       $$('[data-act]').forEach((b) =>
@@ -289,11 +296,53 @@ function home(greet = false) {
         stickerBook();
       });
       $('#pip').addEventListener('click', () => speak(hello));
+      $('#more').addEventListener('click', () => {
+        sfx.tap();
+        moreGames();
+      });
+      $('#wotd').addEventListener('click', () => {
+        sfx.tap();
+        bounce($('#wotd'));
+        speak(`Today’s word is ${today.w}. ${clapLine(today)}`);
+      });
       holdToOpen($('#lock'), () => grownups());
       if (greet) speak(hello);
     },
     { timed: true },
   );
+}
+
+// One topic word per day, the same all day.
+function wordOfTheDay(theme) {
+  const now = new Date();
+  const n = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()) / 864e5);
+  return theme.words[n % theme.words.length];
+}
+
+const clapLine = (word) => {
+  const n = word.s.split('-').length;
+  return `${cap(word.w)}. Let’s clap it: ${n === 1 ? 'one clap' : `${n} claps`}.`;
+};
+
+function bounce(el) {
+  el.classList.remove('jump');
+  void el.offsetWidth;
+  el.classList.add('jump');
+}
+
+const dayKey8 = (t = Date.now()) => new Date(t).toLocaleDateString('en-CA');
+
+// Days in a row, counting back from today (or yesterday, so the run isn't lost before today's practice).
+function streak(days) {
+  const set = new Set(days);
+  let t = Date.now();
+  if (!set.has(dayKey8(t))) t -= 864e5;
+  let n = 0;
+  while (set.has(dayKey8(t))) {
+    n++;
+    t -= 864e5;
+  }
+  return n;
 }
 
 // Press-and-hold for things little fingers shouldn't do by accident:
@@ -320,6 +369,45 @@ function holdToOpen(btn, open, hint = 'Grown-ups: press and hold the lock') {
   btn.addEventListener('click', () => {
     if (!opened) toast(hint);
   });
+}
+
+// --- More games ---
+
+function moreGames() {
+  if (timer.isUp()) return timeUp();
+  const s = store.get();
+  const games = GRAMMAR.filter((g) => s.skills[g.id]);
+  const colours = ['coral', 'teal', 'lilac', 'sun'];
+  mount(
+    `<section class="screen more">
+      <header class="playbar">
+        <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
+        <h1 class="bar-title">More games</h1>
+        <div class="bar-end">${timePill()}</div>
+      </header>
+      ${
+        games.length
+          ? `<div class="tiles more-tiles">${games
+              .map((g, k) => `<button class="tile tile-${colours[k % 4]}" data-act="${g.id}"><span class="tile-art">${g.art}</span><span class="tile-name">${g.name}</span></button>`)
+              .join('')}</div>`
+          : '<p class="lead center">A grown-up can switch these games on in the grown-ups area, under Skills.</p>'
+      }
+    </section>`,
+    () => {
+      $('#home').addEventListener('click', () => {
+        sfx.tap();
+        home();
+      });
+      $$('[data-act]').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.tap();
+          play(b.dataset.act);
+        }),
+      );
+      speak('Pick a game!');
+    },
+    { timed: true },
+  );
 }
 
 // --- Playing a round ---
@@ -349,7 +437,7 @@ function showNext(stage, go) {
   });
 }
 
-const GAMES = { who: playWho, word: playWord, build: playBuild, say: playSay, words: playVocab };
+const GAMES = { who: playWho, word: playWord, build: playBuild, say: playSay, words: playVocab, plural: playPick, prep: playPick, past: playPick, question: playPick };
 
 // Let's practise: a short mix of games, so children can just press one button and go.
 function makeMix(skills, theme) {
@@ -367,6 +455,8 @@ function roundFor(activityId, theme) {
   const skills = store.get().skills;
   if (activityId === 'mix') return { intro: 'Let’s practise!', items: makeMix(skills, theme) };
   if (activityId === 'words') return { intro: theme.intro, items: makeWordRound(theme) };
+  const grammar = GRAMMAR.find((g) => g.id === activityId);
+  if (grammar) return { intro: grammar.intro, items: makeGrammarRound(activityId) };
   return { intro: ACTIVITIES.find((a) => a.id === activityId).intro, items: makeRound(activityId, skills) };
 }
 
@@ -705,6 +795,53 @@ function playSay(stage, item, ctx) {
   };
 }
 
+// More grammar games — a picture, a sentence with a gap (or a question), and big choices.
+function playPick(stage, item, ctx) {
+  const gap = !item.prompt;
+  const prompt = gap
+    ? `<p class="sentence"><span class="w who">${item.before}</span> <span class="w doing gap" data-gap>?</span>${item.after ? ` <span class="w what">${item.after}</span>` : ''}</p>`
+    : `<p class="question">${item.prompt}</p>`;
+  stage.innerHTML = `${item.scene}
+    <div class="prompt">${prompt}</div>
+    <div class="choices">${item.options
+      .map((o, k) => `<button class="choice ${o.art ? 'card' : 'word'}" data-k="${k}">${o.art ? `<span class="choice-art">${o.art}</span>` : ''}<span class="choice-word">${o.label}</span></button>`)
+      .join('')}</div>
+    <div class="next-slot"></div>`;
+  ctx.setReplay(() => speak(item.ask));
+  speak(ctx.intro + item.ask);
+
+  let done = false;
+  $$('.choice', stage).forEach((b) =>
+    b.addEventListener('click', () => {
+      if (done) return;
+      done = true;
+      const ok = item.options[b.dataset.k].label === item.answer;
+      if (gap) {
+        const g = $('[data-gap]', stage);
+        g.textContent = item.answer;
+        g.classList.add(ok ? 'filled' : 'fixed');
+      } else {
+        $('.prompt', stage).innerHTML += `<p class="answer-line">${item.line.split('. ')[0]}.</p>`;
+      }
+      const right = $$('.choice', stage).find((c) => item.options[c.dataset.k].label === item.answer);
+      if (ok) {
+        b.classList.add('right');
+        cheer();
+        speak(`${pick(PRAISE)} ${item.line}`);
+      } else {
+        b.classList.add('wrong');
+        shake(b);
+        right.classList.add('hint');
+        oops();
+        speak(`Nearly! ${item.line}`);
+      }
+      ctx.setReplay(() => speak(item.line));
+      store.logAttempt({ activity: 'grammar', skill: item.skill, ok });
+      showNext(stage, () => ctx.next(ok));
+    }),
+  );
+}
+
 // Topic words — find the picture, guess it from a clue, or say its name.
 // Each new word is shown split into claps (syllables), which helps children say it.
 function playVocab(stage, item, ctx) {
@@ -794,10 +931,14 @@ function celebrate(activityId, roundStars, total) {
   const missing = STICKERS.filter((x) => !s.stickers.includes(x));
   const sticker = missing.length ? pick(missing) : pick(STICKERS);
   const isNew = missing.length > 0;
+  const today = dayKey8();
+  const firstToday = !s.days.includes(today);
   store.update((st) => {
     if (isNew) st.stickers.push(sticker);
     st.rounds++;
+    if (firstToday) st.days.push(today);
   });
+  const unlocked = firstToday && HATS.find((h) => h.days === s.days.length);
   const name = s.child.name;
   const message = isNew ? 'You won a new sticker!' : 'You’ve collected every sticker!';
   mount(
@@ -805,6 +946,7 @@ function celebrate(activityId, roundStars, total) {
       <div class="sticker-reveal"><span class="sticker-big">${sticker}</span></div>
       <h1>Brilliant, ${esc(name)}!</h1>
       <p class="lead">${message}</p>
+      ${unlocked ? `<p class="unlock"><span>${unlocked.e}</span> Pip has a new ${unlocked.name}! Find it in your stars.</p>` : ''}
       <div class="round-stars" aria-label="${roundStars} stars">${Array.from({ length: total }, (_, k) => `<span class="${k < roundStars ? 'lit' : ''}">${icon('star')}</span>`).join('')}</div>
       <div class="row">
         <button class="btn btn-primary btn-big" id="again">${icon('again')} Play again</button>
@@ -814,7 +956,7 @@ function celebrate(activityId, roundStars, total) {
     () => {
       sfx.win();
       confetti();
-      speak(`Brilliant, ${name}! ${message}`);
+      speak(`Brilliant, ${name}! ${message}${unlocked ? ` And Pip has a new ${unlocked.name}!` : ''}`);
       $('#again').addEventListener('click', () => {
         sfx.tap();
         play(activityId);
@@ -831,13 +973,50 @@ function celebrate(activityId, roundStars, total) {
 function stickerBook() {
   if (timer.isUp()) return timeUp();
   const s = store.get();
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const blanks = (first.getDay() + 6) % 7; // weeks start on Monday
+  const inMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const played = new Set(s.days);
+  const run = streak(s.days);
+  const cells = [
+    ...Array(blanks).fill('<span class="cal-day blank"></span>'),
+    ...Array.from({ length: inMonth }, (_, k) => {
+      const d = new Date(now.getFullYear(), now.getMonth(), k + 1);
+      const key = dayKey8(d);
+      const cls = [played.has(key) ? 'done' : '', k + 1 === now.getDate() ? 'today' : ''].join(' ');
+      return `<span class="cal-day ${cls}">${played.has(key) ? icon('star') : k + 1}</span>`;
+    }),
+  ];
   mount(
     `<section class="screen stickers">
       <header class="playbar">
         <button class="round-btn" id="home" aria-label="Home">${icon('home')}</button>
-        <h1 class="bar-title">My stickers</h1>
-        <span class="chip static">${icon('star')}<span>${s.stickers.length}/${STICKERS.length}</span></span>
+        <h1 class="bar-title">My stars</h1>
+        <span class="chip static">${icon('star')}<span>${s.days.length} ${s.days.length === 1 ? 'day' : 'days'}</span></span>
       </header>
+      <div class="stars-layout">
+        <div class="card cal-card">
+          <h2>${now.toLocaleDateString('en-GB', { month: 'long' })}</h2>
+          ${run > 1 ? `<p class="streak">${run} days in a row!</p>` : ''}
+          <div class="cal">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span class="cal-head">${d}</span>`).join('')}${cells.join('')}</div>
+        </div>
+        <div class="card dress-card">
+          <h2>Dress up Pip</h2>
+          <div class="dress-row">
+            <span class="pip-mid" id="pip-preview">${pip('happy')}</span>
+            <div class="hats">
+              <button class="hat ${s.hat ? '' : 'on'}" data-hat="" aria-label="Nothing">✖️</button>
+              ${HATS.map((h) =>
+                s.days.length >= h.days
+                  ? `<button class="hat ${s.hat === h.e ? 'on' : ''}" data-hat="${h.e}" aria-label="${h.name}">${h.e}</button>`
+                  : `<span class="hat locked" aria-label="Locked: practise on ${h.days} days">${icon('lock')}<small>${h.days} days</small></span>`,
+              ).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+      <h2 class="section-label">My stickers · ${s.stickers.length}/${STICKERS.length}</h2>
       <div class="sticker-grid">${STICKERS.map((x) =>
         s.stickers.includes(x) ? `<button class="sticker" aria-label="Sticker">${x}</button>` : '<span class="sticker empty">?</span>',
       ).join('')}</div>
@@ -847,14 +1026,24 @@ function stickerBook() {
         sfx.tap();
         home();
       });
+      $$('.hat[data-hat]').forEach((b) =>
+        b.addEventListener('click', () => {
+          sfx.good();
+          store.update((st) => (st.hat = b.dataset.hat));
+          wear(b.dataset.hat);
+          $('#pip-preview').innerHTML = pip('wow');
+          bounce($('#pip-preview'));
+          $$('.hat[data-hat]').forEach((o) => o.classList.toggle('on', o === b));
+        }),
+      );
       $$('.sticker:not(.empty)').forEach((b) =>
         b.addEventListener('click', () => {
           sfx.good();
           shake(b);
         }),
       );
-      const n = s.stickers.length;
-      speak(n ? `You have ${n} sticker${n === 1 ? '' : 's'}!` : 'Play a game to win your first sticker!');
+      const n = s.days.length;
+      speak(n ? `You've practised on ${n} ${n === 1 ? 'day' : 'days'}! ${run > 1 ? `That's ${run} days in a row!` : ''}` : 'Play a game to win your first star!');
     },
     { timed: true },
   );
@@ -931,7 +1120,7 @@ function progressTab(body) {
   }
 
   const cards = SKILLS.map((sk) => ({ sk, st: skillStats(s.log, sk.id) }))
-    .filter(({ sk, st }) => s.skills[sk.id] || st.total || st.said.got + st.said.nearly)
+    .filter(({ sk, st }) => (s.skills[sk.id] && sk.group !== 'more') || st.total || st.said.got + st.said.nearly)
     .map(({ sk, st }) => {
       const confident = st.accuracy >= 80 && st.recentCount >= 15;
       const learning = st.accuracy !== null && st.accuracy < 50 && st.recentCount >= 10;
@@ -955,11 +1144,11 @@ function progressTab(body) {
     })
     .join('');
 
-  const ready = SKILLS.filter((sk) => s.skills[sk.id]).every((sk) => {
+  const ready = SKILLS.filter((sk) => s.skills[sk.id] && sk.group !== 'more').every((sk) => {
     const st = skillStats(s.log, sk.id);
     return st.accuracy >= 80 && st.recentCount >= 15;
   });
-  const nextSkill = SKILLS.find((sk) => !s.skills[sk.id]);
+  const nextSkill = SKILLS.find((sk) => !s.skills[sk.id] && sk.group !== 'more');
 
   const played = timer.history(7);
   const weekMins = Math.round(played.reduce((n, d) => n + d.secs, 0) / 60);
@@ -1035,6 +1224,11 @@ function skillsTab(body) {
       <h2>Matching words</h2>
       <p class="muted">Used in Pick the word, Build it and Say it. Start with one or two, then add more as your child grows in confidence.</p>
       <div class="toggle-list">${SKILLS.filter((x) => x.group === 'verb').map(row).join('')}</div>
+    </div>
+    <div class="card">
+      <h2>More games</h2>
+      <p class="muted">The games behind the More games button on the home screen. Switch off any that are too tricky for now.</p>
+      <div class="toggle-list">${SKILLS.filter((x) => x.group === 'more').map(row).join('')}</div>
     </div>`;
   $$('.switch', body).forEach((sw) =>
     sw.addEventListener('change', () => store.update((st) => (st.skills[sw.dataset.skill] = sw.checked))),
@@ -1240,4 +1434,5 @@ if ('serviceWorker' in navigator && !/^(localhost|127\.0\.0\.1)$/.test(location.
 }
 
 applyTextSize();
+wear(store.get().hat);
 splash();
