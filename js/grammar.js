@@ -1,6 +1,7 @@
 // More grammar games: one or lots (plurals), in / on / under, yesterday (-ed), and who / what / where.
 // Every turn is a picture, a question, and a few big choices.
 import { pick, shuffle, TONES, ROUND_LENGTH } from './content.js';
+import { sceneFor, sceneKey } from './scenes.js';
 
 export const GRAMMAR = [
   { id: 'plural', name: 'One or lots?', art: '🐱🐱', intro: 'One or lots? Count, then pick the word.' },
@@ -74,9 +75,13 @@ const people = (pron) => (pron === 'they' ? pick(PEOPLE.they) : [pick(PEOPLE[pro
 function past() {
   const [now, then, what, art] = pick(PAST);
   const pron = pick(['he', 'she', 'they']);
+  const key = sceneKey(`${then} ${what}`);
+  const when = '<span class="when">📅 Yesterday</span>';
   return {
     skill: 'past',
-    scene: `<div class="scene ${pron === 'they' ? 'many' : ''}"><span class="when">📅 Yesterday</span>
+    scene: key
+      ? `<div class="scene art">${when}${sceneFor(key, pron)}</div>`
+      : `<div class="scene ${pron === 'they' ? 'many' : ''}">${when}
       <span class="scene-people">${people(pron).map((p) => `<span>${p}</span>`).join('')}</span><span class="scene-thing">${art}</span></div>`,
     before: `Yesterday, ${WHO[pron].toLowerCase()}`,
     after: `${what}.`,

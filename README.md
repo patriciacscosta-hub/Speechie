@@ -24,6 +24,8 @@ The big **Let’s practise** button on the home screen plays a short mix of the 
 
 **My stars:** a calendar with a star for every day your child finishes a round, and how many days in a row. Practising on more days unlocks things for Pip to wear (a bow, cap, top hat, flower, graduation hat and crown).
 
+**Pictures:** action sentences show picture-book scenes of two characters, Meg (*she*), Ben (*he*) or both (*they*), drawn in code so there are no image files to download. Some actions move (kicking, drumming, rain). Sentences without a drawn scene yet still use emoji.
+
 Each round is 6 turns and ends with a sticker for the sticker book. All instructions are spoken aloud, so children don't need to read.
 
 ## Play timer
@@ -65,6 +67,7 @@ js/store.js           progress saved on the device
 js/timer.js           daily play timer
 js/themes.js          seasonal topic words and calendar
 js/grammar.js         plurals, in/on/under, past tense, question words
+js/scenes.js          picture-book scenes of Meg (she) and Ben (he), drawn in code
 js/art.js             Pip the mascot and icons
 sw.js                 offline support
 manifest.webmanifest  home-screen app details

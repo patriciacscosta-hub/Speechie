@@ -3,6 +3,7 @@ import { speak, stopSpeaking, britishVoices, onVoicesChanged, recorder, sfx, unl
 import { SKILLS, ACTIVITIES, AVATARS, STICKERS, PRAISE, makeRound, sentence, pick, shuffle } from './content.js';
 import { pip, icon, HATS, wear } from './art.js';
 import { GRAMMAR, makeGrammarRound } from './grammar.js';
+import { sceneFor, sceneKey } from './scenes.js';
 import * as timer from './timer.js';
 import { THEMES, currentTheme, themeFor, makeWordRound, the } from './themes.js';
 
@@ -414,7 +415,14 @@ function moreGames() {
 
 // --- Playing a round ---
 
-const sceneHTML = (item) => `
+// A drawn picture-book scene where there is one, otherwise emoji.
+function sceneHTML(item) {
+  const key = item.scene && sceneKey(item.scene);
+  if (key) return `<div class="scene art">${sceneFor(key, item.pron)}</div>`;
+  return emojiScene(item);
+}
+
+const emojiScene = (item) => `
   <div class="scene ${item.people.length > 1 ? 'many' : ''}">
     <span class="scene-people">${item.people.map((p) => `<span>${p}</span>`).join('')}</span>
     <span class="scene-thing">${item.thing}</span>

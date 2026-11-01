@@ -113,7 +113,7 @@ export function makeItem(skill, pron) {
   }
   if (skill === 'verbs') {
     const [plain, s, rest, thing] = pick(ACTIONS);
-    return { ...item, thing, rest, verb: many ? plain : s, wrong: many ? s : plain };
+    return { ...item, thing, rest, verb: many ? plain : s, wrong: many ? s : plain, scene: `${plain} ${rest}` };
   }
   if (skill === 'waswere') {
     const [rest, thing] = pick(WAS);
@@ -121,7 +121,7 @@ export function makeItem(skill, pron) {
   }
   // 'hs', 'they' and 'isare' all use "is/are + -ing" pictures.
   const [mid, rest, thing] = pick(ING);
-  return { ...item, thing, mid, rest, verb: many ? 'are' : 'is', wrong: many ? 'is' : 'are' };
+  return { ...item, thing, mid, rest, verb: many ? 'are' : 'is', wrong: many ? 'is' : 'are', scene: `${mid} ${rest}` };
 }
 
 export const sentence = (it) => [it.who, it.verb, it.mid, it.rest].filter(Boolean).join(' ') + '.';
