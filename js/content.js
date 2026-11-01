@@ -36,40 +36,40 @@ const PEOPLE = {
   they: [['👧', '👦'], ['👦', '👦'], ['👧', '👧'], ['👩', '👨'], ['👵', '👴'], ['👦', '👧', '👦']],
 };
 
+// Every word a child reads (tiles and choices) can be sounded out with early phonics:
+// simple letter sounds, sh ch th ng ck, ee oo ar or er ai oa ow, and common tricky words
+// (the, he, she, they, is, are, has, have, was, were). No a-e, ea, ie, ou and the like.
+
 // [doing, what, picture]
 const ING = [
-  ['eating', 'an apple', '🍎'], ['kicking', 'a ball', '⚽'], ['reading', 'a book', '📖'],
-  ['drinking', 'milk', '🥛'], ['riding', 'a bike', '🚲'], ['painting', 'a picture', '🎨'],
-  ['eating', 'a banana', '🍌'], ['flying', 'a kite', '🪁'], ['playing', 'the drums', '🥁'],
-  ['eating', 'cake', '🍰'], ['building', 'a snowman', '⛄'], ['holding', 'an umbrella', '☂️'],
-  ['singing', 'a song', '🎵'], ['cooking', 'pancakes', '🥞'], ['watering', 'the flowers', '🌷'],
-  ['playing', 'the guitar', '🎸'], ['eating', 'pizza', '🍕'], ['hugging', 'a teddy', '🧸'],
-  ['feeding', 'the duck', '🦆'], ['catching', 'a fish', '🎣'],
+  ['kicking', 'a ball', '⚽'], ['looking at', 'a book', '📖'], ['drinking', 'milk', '🥛'],
+  ['munching', 'a banana', '🍌'], ['hitting', 'the drum', '🥁'], ['licking', 'a lollipop', '🍭'],
+  ['getting', 'wet', '🌧️'], ['singing', 'a song', '🎵'], ['cooking', 'eggs', '🍳'],
+  ['hugging', 'a dog', '🐶'], ['feeding', 'the duck', '🦆'], ['petting', 'a cat', '🐱'],
+  ['digging', 'in the sand', '🏖️'], ['sitting', 'on a log', '🪵'], ['chopping', 'carrots', '🥕'],
 ];
 
 // [what, picture]
 const HAVE = [
-  ['a cat', '🐱'], ['a dog', '🐶'], ['a balloon', '🎈'], ['an ice cream', '🍦'], ['a teddy', '🧸'],
-  ['a present', '🎁'], ['a fish', '🐠'], ['a birthday cake', '🎂'], ['an umbrella', '☂️'],
-  ['a rabbit', '🐰'], ['a red car', '🚗'], ['a lolly', '🍭'], ['a guitar', '🎸'], ['a kite', '🪁'],
-  ['a crown', '👑'], ['a backpack', '🎒'],
+  ['a cat', '🐱'], ['a dog', '🐶'], ['a balloon', '🎈'], ['a fish', '🐠'], ['an umbrella', '☂️'],
+  ['a rabbit', '🐰'], ['a red car', '🚗'], ['a crown', '👑'], ['a backpack', '🎒'], ['a drum', '🥁'],
+  ['a hat', '🎩'], ['a duck', '🦆'], ['a robot', '🤖'], ['a sandwich', '🥪'], ['a frog', '🐸'],
 ];
 
 // [they-form, he/she-form, what, picture]
 const ACTIONS = [
-  ['play', 'plays', 'football', '⚽'], ['eat', 'eats', 'carrots', '🥕'], ['like', 'likes', 'apples', '🍎'],
-  ['read', 'reads', 'books', '📚'], ['drink', 'drinks', 'juice', '🧃'], ['watch', 'watches', 'TV', '📺'],
-  ['wash', 'washes', 'the car', '🚗'], ['go', 'goes', 'to school', '🏫'], ['ride', 'rides', 'a scooter', '🛴'],
-  ['love', 'loves', 'cats', '🐈'], ['catch', 'catches', 'the ball', '🏐'], ['fly', 'flies', 'a kite', '🪁'],
-  ['bake', 'bakes', 'cakes', '🧁'], ['sing', 'sings', 'songs', '🎵'], ['brush', 'brushes', 'the dog', '🐕'],
-  ['plant', 'plants', 'seeds', '🌱'],
+  ['kick', 'kicks', 'the ball', '⚽'], ['dig', 'digs', 'in the sand', '🏖️'], ['sing', 'sings', 'songs', '🎵'],
+  ['swim', 'swims', 'in the pond', '🏊'], ['run', 'runs', 'fast', '🏃'], ['drink', 'drinks', 'milk', '🥛'],
+  ['cook', 'cooks', 'eggs', '🍳'], ['feed', 'feeds', 'the duck', '🦆'], ['hug', 'hugs', 'the dog', '🐶'],
+  ['look', 'looks', 'at books', '📚'], ['sit', 'sits', 'on a log', '🪵'], ['jump', 'jumps', 'on the bed', '🛏️'],
+  ['chop', 'chops', 'carrots', '🥕'], ['lick', 'licks', 'lollipops', '🍭'],
 ];
 
 // [what, picture]
 const WAS = [
-  ['happy', '😄'], ['at the beach', '🏖️'], ['sleepy', '😴'], ['in the garden', '🌻'],
-  ['at the park', '🌳'], ['cold', '🥶'], ['at the zoo', '🦒'], ['wet', '🌧️'], ['hungry', '🍽️'],
-  ['at the farm', '🐄'], ['excited', '🎉'], ['at the seaside', '🌊'],
+  ['sad', '😢'], ['wet', '🌧️'], ['hot', '🥵'], ['sick', '🤒'], ['glad', '😄'], ['cross', '😠'],
+  ['at the park', '🌳'], ['at the farm', '🐄'], ['in bed', '🛏️'], ['at the shop', '🛒'],
+  ['at the zoo', '🦒'], ['in the garden', '🌻'],
 ];
 
 export const pick = (list) => list[Math.floor(Math.random() * list.length)];

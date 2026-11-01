@@ -14,11 +14,11 @@ const NUMBERS = ['', 'one', 'two', 'three', 'four', 'five'];
 
 // [one, more than one, picture]
 const NOUNS = [
-  ['cat', 'cats', '🐱'], ['dog', 'dogs', '🐶'], ['duck', 'ducks', '🦆'], ['apple', 'apples', '🍎'],
-  ['ball', 'balls', '⚽'], ['star', 'stars', '⭐'], ['car', 'cars', '🚗'], ['bee', 'bees', '🐝'],
-  ['frog', 'frogs', '🐸'], ['cake', 'cakes', '🧁'], ['bus', 'buses', '🚌'], ['fox', 'foxes', '🦊'],
-  ['box', 'boxes', '📦'], ['flower', 'flowers', '🌷'], ['sock', 'socks', '🧦'], ['egg', 'eggs', '🥚'],
-];
+  ['cat', 'cats', '🐱'], ['dog', 'dogs', '🐶'], ['duck', 'ducks', '🦆'], ['pig', 'pigs', '🐷'],
+  ['star', 'stars', '⭐'], ['car', 'cars', '🚗'], ['bee', 'bees', '🐝'], ['frog', 'frogs', '🐸'],
+  ['hat', 'hats', '🎩'], ['bus', 'buses', '🚌'], ['fox', 'foxes', '🦊'], ['box', 'boxes', '📦'],
+  ['sock', 'socks', '🧦'], ['egg', 'eggs', '🥚'], ['shell', 'shells', '🐚'], ['drum', 'drums', '🥁'],
+]
 
 function plural() {
   const [one, many, art] = pick(NOUNS);
@@ -37,12 +37,12 @@ function plural() {
 }
 
 // [name, picture]
-const CRITTERS = [['cat', '🐱'], ['dog', '🐶'], ['rabbit', '🐰'], ['frog', '🐸'], ['mouse', '🐭'], ['teddy', '🧸'], ['duck', '🦆'], ['ball', '⚽']];
+const CRITTERS = [['cat', '🐱'], ['dog', '🐶'], ['rabbit', '🐰'], ['frog', '🐸'], ['pig', '🐷'], ['chick', '🐤'], ['duck', '🦆'], ['fox', '🦊']];
 
 function prep() {
   const where = pick(['in', 'on', 'under']);
-  // A box for "in", a table for "under", either for "on".
-  const thing = where === 'in' ? 'box' : where === 'under' ? 'table' : pick(['box', 'table']);
+  // A box for "in", a desk for "under", either for "on".
+  const thing = where === 'in' ? 'box' : where === 'under' ? 'desk' : pick(['box', 'desk']);
   const [name, art] = pick(CRITTERS);
   const scene =
     thing === 'box'
@@ -62,11 +62,11 @@ function prep() {
 
 // [now, yesterday, what, picture] — regular verbs only, so the -ed ending is always the clue.
 const PAST = [
-  ['play', 'played', 'football', '⚽'], ['paint', 'painted', 'a picture', '🎨'], ['cook', 'cooked', 'dinner', '🍳'],
-  ['wash', 'washed', 'the car', '🚗'], ['watch', 'watched', 'TV', '📺'], ['bake', 'baked', 'cakes', '🧁'],
-  ['plant', 'planted', 'seeds', '🌱'], ['climb', 'climbed', 'a tree', '🌳'], ['brush', 'brushed', 'the dog', '🐕'],
-  ['walk', 'walked', 'to school', '🏫'], ['jump', 'jumped', 'in puddles', '💦'], ['open', 'opened', 'a present', '🎁'],
-];
+  ['kick', 'kicked', 'the ball', '⚽'], ['cook', 'cooked', 'dinner', '🍳'], ['brush', 'brushed', 'the dog', '🐕'],
+  ['look', 'looked', 'at the moon', '🌙'], ['plant', 'planted', 'seeds', '🌱'], ['jump', 'jumped', 'on the bed', '🛏️'],
+  ['lick', 'licked', 'a lollipop', '🍭'], ['pack', 'packed', 'a bag', '🎒'], ['fix', 'fixed', 'the car', '🚗'],
+  ['push', 'pushed', 'the cart', '🛒'], ['fill', 'filled', 'the bucket', '🪣'], ['mend', 'mended', 'the sock', '🧦'],
+]
 const PEOPLE = { she: ['👧', '👩'], he: ['👦', '👨'], they: [['👧', '👦'], ['👦', '👦'], ['👩', '👨']] };
 const WHO = { he: 'He', she: 'She', they: 'They' };
 const people = (pron) => (pron === 'they' ? pick(PEOPLE.they) : [pick(PEOPLE[pron])]).map((e) => e + tone());
@@ -89,20 +89,20 @@ function past() {
 
 // [doing, what, picture, where, picture]
 const SCENES = [
-  ['reading', 'a book', '📖', 'in bed', '🛏️'], ['eating', 'an apple', '🍎', 'in the park', '🏞️'],
-  ['building', 'a sandcastle', '🏰', 'at the beach', '🏖️'], ['painting', 'a picture', '🎨', 'at school', '🏫'],
+  ['looking at', 'a book', '📖', 'in bed', '🛏️'], ['munching', 'a banana', '🍌', 'in the park', '🏞️'],
   ['kicking', 'a ball', '⚽', 'in the garden', '🌳'], ['singing', 'a song', '🎵', 'in the car', '🚗'],
-  ['riding', 'a bike', '🚲', 'in the park', '🏞️'], ['flying', 'a kite', '🪁', 'on the hill', '⛰️'],
-  ['eating', 'ice cream', '🍦', 'at the seaside', '🌊'], ['drinking', 'milk', '🥛', 'at home', '🏠'],
-];
-const PERSON = { she: 'the girl', he: 'the boy', they: 'the children' };
+  ['drinking', 'milk', '🥛', 'in the tent', '⛺'], ['hugging', 'a dog', '🐶', 'on the hill', '⛰️'],
+  ['licking', 'a lollipop', '🍭', 'at the farm', '🚜'], ['feeding', 'a duck', '🦆', 'in the rain', '🌧️'],
+  ['cooking', 'eggs', '🍳', 'on the boat', '⛵'], ['hitting', 'a drum', '🥁', 'at the zoo', '🦒'],
+]
+const PERSON = { she: 'Meg', he: 'Ben', they: 'Ben and Meg' };
 const KIND = { who: 'Who asks about a person.', what: 'What asks about a thing.', where: 'Where asks about a place.' };
 
 function question(kind) {
   const [doing, what, whatArt, where, whereArt] = pick(SCENES);
   const pron = pick(['he', 'she', 'they']);
   const be = pron === 'they' ? 'are' : 'is';
-  const kids = { she: ['👧'], he: ['👦'], they: [pick(['👧', '👦']), pick(['👧', '👦'])] }[pron].map((e) => e + tone()).join('');
+  const kids = { she: ['👧'], he: ['👦'], they: ['👦', '👧'] }[pron].map((e) => e + tone()).join('');
   const ask = {
     who: `Who ${be} ${doing} ${what}?`,
     what: `What ${be} ${pron} ${doing}?`,
@@ -120,7 +120,7 @@ function question(kind) {
     options: shuffle(options),
     answer: options.find((o) => o.kind === kind).label,
     ask,
-    line: `${pron === 'they' ? 'They are' : `${pron === 'he' ? 'He' : 'She'} is`} ${doing} ${what} ${where}. ${KIND[kind]}`,
+    line: `${PERSON[pron]} ${be} ${doing} ${what} ${where}. ${KIND[kind]}`,
   };
 }
 

@@ -312,11 +312,13 @@ function home(greet = false) {
   );
 }
 
-// One topic word per day, the same all day.
+// One topic word per day, the same all day, picked from words a 5-year-old can sound out.
 function wordOfTheDay(theme) {
   const now = new Date();
   const n = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()) / 864e5);
-  return theme.words[n % theme.words.length];
+  const easy = theme.words.filter((w) => w.d);
+  const words = easy.length ? easy : theme.words;
+  return words[n % words.length];
 }
 
 const clapLine = (word) => {
